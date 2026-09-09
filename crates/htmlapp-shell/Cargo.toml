@@ -1,0 +1,20 @@
+[package]
+name = "htmlapp-shell"
+description = "The GPUI chrome for HTML App: launcher, titlebar, consent sheet, menus"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+htmlapp-caps.workspace = true
+htmlapp-engine.workspace = true
+htmlapp-bridge.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+dirs.workspace = true
+gpui = "0.2.2"
+wry = "0.57"

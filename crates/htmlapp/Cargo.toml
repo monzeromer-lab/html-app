@@ -1,0 +1,30 @@
+[package]
+name = "htmlapp"
+description = "Run a single .hta file as a Linux desktop application"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "htmlapp"
+
+[[bin]]
+name = "htmlapp"
+path = "src/main.rs"
+
+[dependencies]
+htmlapp-caps.workspace = true
+htmlapp-bridge.workspace = true
+htmlapp-engine.workspace = true
+htmlapp-api.workspace = true
+htmlapp-build.workspace = true
+htmlapp-runtime.workspace = true
+htmlapp-shell.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+dirs.workspace = true
+arboard = "3"
+open = "5"

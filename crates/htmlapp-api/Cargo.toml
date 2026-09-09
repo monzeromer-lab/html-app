@@ -1,0 +1,56 @@
+[package]
+name = "htmlapp-api"
+description = "The native API modules for HTML App, each gated on a manifest permission"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["tier1", "tier2", "tier3", "tier4"]
+tier1 = ["dep:notify", "dep:portable-pty", "dep:reqwest", "dep:rusqlite"]
+tier2 = ["dep:zbus", "dep:ashpd", "dep:ksni", "dep:udev"]
+tier3 = ["dep:arboard"]
+tier4 = ["dep:sysinfo", "dep:open", "dep:trash"]
+# Escape hatches, off unless explicitly asked for (§9.3 Tier 4).
+ffi = ["dep:libloading"]
+plugin = ["dep:wasmtime"]
+serial = ["dep:serialport"]
+
+[dependencies]
+htmlapp-caps.workspace = true
+htmlapp-bridge.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+futures.workspace = true
+parking_lot.workspace = true
+base64.workspace = true
+dirs.workspace = true
+globset.workspace = true
+async-stream = "0.3"
+
+notify        = { version = "8", optional = true }
+portable-pty  = { version = "0.9", optional = true }
+reqwest       = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"], optional = true }
+rusqlite      = { version = "0.37", features = ["bundled"], optional = true }
+# Both of these must match the feature set gpui pins, or Cargo unifies them into a build that
+# enables two mutually exclusive async backends at once. ashpd refuses that combination outright.
+zbus          = { version = "5", optional = true }
+ashpd         = { version = "0.11", default-features = false, features = ["async-std"], optional = true }
+ksni          = { version = "0.3", optional = true }
+udev          = { version = "0.9", optional = true }
+arboard       = { version = "3", optional = true }
+sysinfo       = { version = "0.38", optional = true }
+open          = { version = "5", optional = true }
+trash         = { version = "5", optional = true }
+libloading    = { version = "0.8", optional = true }
+wasmtime      = { version = "38", optional = true }
+serialport    = { version = "4", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+htmlapp-bridge.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<!--
+  UC6 — a CSV summariser that works in a shell pipeline.
+
+      cat data.csv | htmlapp examples/csv-report.hta --headless > summary.json
+
+  window.mode "headless" means no surface at all: htmlapp.stdin and htmlapp.stdout
+  are available, and the process exits when the page calls htmlapp.exit().
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "CSV Report",
+  "id": "dev.htmlapp.csvreport",
+  "version": "1.0.0",
+  "window": { "mode": "headless" }
+}
+</script>
+</head>
+<body>
+<script type="module">
+  // Read the whole of stdin. For very large inputs, htmlapp.stdin.lines() streams instead.
+  const input = await htmlapp.stdin.read();
+  const lines = input.split('\n').filter(line => line.trim().length > 0);
+
+  if (lines.length === 0) {
+    await htmlapp.stderr.write('csv-report: no input on stdin\n');
+    await htmlapp.exit(1);
+  }
+
+  const parse = line => {
+    // Minimal RFC-4180: handles quoted fields containing commas and doubled quotes.
+    const fields = [];
+    let value = '', quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (quoted) {
+        if (c === '"' && line[i + 1] === '"') { value += '"'; i++; }
+        else if (c === '"') quoted = false;
+        else value += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { fields.push(value); value = ''; }
+      else value += c;
+    }
+    fields.push(value);
+    return fields;
+  };
+
+  const header = parse(lines[0]);
+  const rows = lines.slice(1).map(parse);
+
+  const columns = header.map((name, index) => {
+    const raw = rows.map(row => row[index] ?? '');
+    const numbers = raw.map(Number).filter(n => Number.isFinite(n) && n !== 0 || raw.includes('0'));
+    const numeric = raw.length > 0 && raw.every(v => v.trim() !== '' && Number.isFinite(Number(v)));
+
+    const summary = { name, count: raw.length, empty: raw.filter(v => v.trim() === '').length };
+    if (numeric) {
+      const values = raw.map(Number);
+      const sum = values.reduce((a, b) => a + b, 0);
+      summary.type = 'number';
+      summary.min = Math.min(...values);
+      summary.max = Math.max(...values);
+      summary.mean = sum / values.length;
+      summary.sum = sum;
+    } else {
+      summary.type = 'text';
+      summary.distinct = new Set(raw).size;
+    }
+    return summary;
+  });
+
+  await htmlapp.stdout.write(JSON.stringify({ rows: rows.length, columns }, null, 2) + '\n');
+  await htmlapp.exit(0);
+</script>
+</body>
+</html>

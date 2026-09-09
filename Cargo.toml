@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/monzeromer-lab/htmlapp"
+rust-version = "1.90"
+
+[workspace.dependencies]
+htmlapp-api      = { path = "crates/htmlapp-api",      version = "0.1.0" }
+htmlapp-bridge   = { path = "crates/htmlapp-bridge",   version = "0.1.0" }
+htmlapp-build    = { path = "crates/htmlapp-build",    version = "0.1.0" }
+htmlapp-caps     = { path = "crates/htmlapp-caps",     version = "0.1.0" }
+htmlapp-engine   = { path = "crates/htmlapp-engine",   version = "0.1.0" }
+htmlapp-runtime  = { path = "crates/htmlapp-runtime",  version = "0.1.0" }
+htmlapp-shell    = { path = "crates/htmlapp-shell",    version = "0.1.0" }
+htmlapp-views    = { path = "crates/htmlapp-views",    version = "0.1.0" }
+htmlapp-wayland  = { path = "crates/htmlapp-wayland",  version = "0.1.0" }
+
+anyhow      = "1"
+thiserror   = "2"
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+tokio       = { version = "1", features = ["rt-multi-thread", "macros", "fs", "process", "io-util", "io-std", "sync", "time", "net", "signal"] }
+tracing     = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2        = "0.10"
+hex         = "0.4"
+globset     = "0.4"
+dirs        = "6"
+clap        = { version = "4", features = ["derive"] }
+base64      = "0.22"
+futures     = "0.3"
+parking_lot = "0.12"

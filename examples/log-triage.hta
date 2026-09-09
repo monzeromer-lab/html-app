@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!--
+  UC1 — a log triage viewer with live tail and a regex filter.
+
+  Exercises: fs.tail (streaming), fs.watch, process.exec (ripgrep), clipboard.
+  This is the document the PRD's §8.2 manifest example is drawn from.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "Log Triage",
+  "id": "dev.htmlapp.logtriage",
+  "version": "1.0.0",
+  "window": { "title": "Log Triage", "width": 1100, "height": 720, "min_width": 640 },
+  "permissions": {
+    "fs":    { "read": ["/var/log/**", "~/logs/**", "/tmp/**"], "watch": true },
+    "clipboard": ["write"],
+    "store": true
+  }
+}
+</script>
+<style>
+  :root { color-scheme: light dark; --pad: .75rem; }
+  * { box-sizing: border-box; }
+  body {
+    font: 13px/1.5 ui-monospace, "JetBrains Mono", monospace;
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; gap: .5rem; align-items: center;
+    padding: var(--pad); border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    font-family: system-ui, sans-serif;
+  }
+  input, button, select {
+    font: inherit; padding: .35rem .6rem; border-radius: 6px;
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    background: transparent; color: inherit;
+  }
+  input { flex: 1; min-width: 8rem; }
+  button { cursor: pointer; }
+  button:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+  #lines { flex: 1; overflow: auto; padding: var(--pad); white-space: pre-wrap; }
+  .line { padding: 1px 0; }
+  .line mark { background: color-mix(in srgb, orange 45%, transparent); color: inherit; }
+  .err  { color: #ff6b6b; }
+  .warn { color: #ffb454; }
+  footer {
+    padding: .4rem var(--pad); font-family: system-ui, sans-serif; font-size: 12px;
+    opacity: .7; border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+    display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <input id="path" placeholder="/var/log/syslog" spellcheck="false">
+    <input id="filter" placeholder="regex filter…" spellcheck="false" style="flex:0 1 16rem">
+    <button id="follow">Follow</button>
+    <button id="copy">Copy</button>
+    <button id="clear">Clear</button>
+  </header>
+  <div id="lines"></div>
+  <footer><span id="status">Idle</span><span id="count">0 lines</span></footer>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const view = $('lines');
+  let stream = null, buffer = [], regex = null;
+
+  const MAX_LINES = 5000;  // Bounded so a busy log cannot grow the DOM without limit.
+
+  const classify = line =>
+    /\b(ERROR|FATAL|CRIT)\b/i.test(line) ? 'err' :
+    /\b(WARN|WARNING)\b/i.test(line)     ? 'warn' : '';
+
+  const escape = s => s.replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+
+  function render() {
+    const shown = regex ? buffer.filter(l => regex.test(l)) : buffer;
+    view.innerHTML = shown.map(line => {
+      let html = escape(line);
+      if (regex) html = html.replace(new RegExp(regex.source, regex.flags + 'g'), m => `<mark>${m}</mark>`);
+      return `<div class="line ${classify(line)}">${html}</div>`;
+    }).join('');
+    view.scrollTop = view.scrollHeight;
+    $('count').textContent = `${shown.length} / ${buffer.length} lines`;
+  }
+
+  async function follow() {
+    stream?.cancel();
+    buffer = []; render();
+
+    const path = $('path').value.trim();
+    if (!path) return;
+
+    $('status').textContent = `Following ${path}`;
+    stream = htmlapp.fs.tail({ path, lines: 200 });
+    try {
+      for await (const line of stream) {
+        buffer.push(line.replace(/\n$/, ''));
+        if (buffer.length > MAX_LINES) buffer.splice(0, buffer.length - MAX_LINES);
+        render();
+      }
+    } catch (e) {
+      $('status').textContent = `${e.code}: ${e.message}`;
+    }
+  }
+
+  $('follow').onclick = follow;
+  $('path').onkeydown = e => { if (e.key === 'Enter') follow(); };
+  $('filter').oninput = e => {
+    const value = e.target.value.trim();
+    try { regex = value ? new RegExp(value, 'i') : null; e.target.style.borderColor = ''; }
+    catch { e.target.style.borderColor = '#ff6b6b'; return; }
+    render();
+  };
+  $('clear').onclick = () => { buffer = []; render(); };
+  $('copy').onclick = () => {
+    const shown = regex ? buffer.filter(l => regex.test(l)) : buffer;
+    htmlapp.clipboard.writeText({ text: shown.join('\n') });
+    $('status').textContent = `Copied ${shown.length} lines`;
+  };
+
+  // Remember the last path across runs — this is what `store` is for.
+  $('path').value = (await htmlapp.store.get({ key: 'path' })) ?? '/var/log/syslog';
+  $('path').onchange = () => htmlapp.store.set({ key: 'path', value: $('path').value });
+</script>
+</body>
+</html>

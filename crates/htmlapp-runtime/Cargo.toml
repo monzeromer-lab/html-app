@@ -1,0 +1,26 @@
+[package]
+name = "htmlapp-runtime"
+description = "Window lifecycle and app orchestration for HTML App"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+htmlapp-caps.workspace = true
+htmlapp-bridge.workspace = true
+htmlapp-engine.workspace = true
+htmlapp-api.workspace = true
+htmlapp-shell.workspace = true
+htmlapp-views.workspace = true
+htmlapp-wayland.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+parking_lot.workspace = true
+dirs.workspace = true
+gpui = "0.2.2"
+ureq = { version = "3", default-features = false, features = ["rustls"] }

@@ -1,0 +1,18 @@
+[package]
+name = "htmlapp-wayland"
+description = "wlr-layer-shell, session-lock, and output management for HTML App"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+htmlapp-caps.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wayland-client = "0.31"
+
+[dev-dependencies]
+serde_json.workspace = true

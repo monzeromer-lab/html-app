@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<!--
+  UC3 — a git repository browser with an embedded terminal.
+
+  Exercises: process.pty (a real terminal), process.exec, fs, and the <htmlapp-view>
+  native view from §10. The terminal is a GPUI element painted over the page, not
+  HTML pretending to be a terminal: it has a real PTY and real escape handling.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "Git Terminal",
+  "id": "dev.htmlapp.gitterminal",
+  "version": "1.0.0",
+  "window": { "title": "Git Terminal", "width": 1100, "height": 740 },
+  "permissions": {
+    "fs":      { "read": ["~/**"] },
+    "process": { "exec": ["git", "bash"], "pty": true },
+    "store":   true
+  }
+}
+</script>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; height: 100vh;
+         display: grid; grid-template-rows: auto 1fr 45%; }
+  header { display: flex; gap: .5rem; padding: .7rem 1rem;
+           border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+  input { flex: 1; font: inherit; padding: .35rem .6rem; border-radius: 6px; color: inherit;
+          border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; }
+  button { font: inherit; padding: .35rem .8rem; border-radius: 6px; cursor: pointer; color: inherit;
+           border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; }
+  #log { overflow: auto; padding: .5rem 1rem; font: 12px/1.5 ui-monospace, monospace; }
+  .commit { padding: .3rem 0; border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
+  .sha { color: #ffb454; }
+  .who { opacity: .6; }
+  htmlapp-view { display: block; width: 100%; height: 100%;
+                 border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+  .msg { padding: 1rem; opacity: .7; }
+</style>
+</head>
+<body>
+  <header>
+    <input id="repo" placeholder="~/some/repo" spellcheck="false">
+    <button id="load">Load log</button>
+  </header>
+  <div id="log"><div class="msg">Point this at a git repository.</div></div>
+  <!--
+    A native GPUI terminal, placed inline in this layout. The element itself is a
+    transparent placeholder; the host paints the real view at its rect.
+  -->
+  <htmlapp-view kind="terminal" id="term"></htmlapp-view>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const escape = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  // A separator that will not appear in a commit subject.
+  const SEP = '\u001f';
+
+  async function loadLog() {
+    const cwd = $('repo').value.trim();
+    if (!cwd) return;
+    $('log').innerHTML = '<div class="msg">Reading…</div>';
+
+    try {
+      const out = await htmlapp.process.exec({
+        program: 'git',
+        args: ['log', `--pretty=format:%h${SEP}%an${SEP}%ar${SEP}%s`, '-n', '80'],
+        cwd,
+      });
+
+      if (out.code !== 0) {
+        $('log').innerHTML = `<div class="msg">${escape(out.stderr || 'not a git repository')}</div>`;
+        return;
+      }
+
+      $('log').innerHTML = out.stdout.split('\n').filter(Boolean).map(line => {
+        const [sha, who, when, subject] = line.split(SEP);
+        return `<div class="commit"><span class="sha">${escape(sha)}</span> ${escape(subject)}
+                <span class="who">— ${escape(who)}, ${escape(when)}</span></div>`;
+      }).join('');
+
+      await htmlapp.store.set({ key: 'repo', value: cwd });
+    } catch (e) {
+      $('log').innerHTML = `<div class="msg">${escape(e.code + ': ' + e.message)}</div>`;
+    }
+  }
+
+  $('load').onclick = loadLog;
+  $('repo').onkeydown = e => { if (e.key === 'Enter') loadLog(); };
+  $('repo').value = (await htmlapp.store.get({ key: 'repo' })) ?? '';
+
+  // Start an interactive shell in the native terminal view.
+  const term = htmlapp.view('term');
+  const session = htmlapp.process.pty({ program: 'bash', cols: 100, rows: 24 });
+  (async () => {
+    for await (const event of session) {
+      if (event.kind === 'stdout') await term.write(event.data);
+    }
+  })();
+
+  if ($('repo').value) loadLog();
+</script>
+</body>
+</html>

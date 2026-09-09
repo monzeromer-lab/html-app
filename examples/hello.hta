@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- The smallest useful HTML App: a page in a window, with no permissions at all. -->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "Hello",
+  "id": "dev.htmlapp.hello",
+  "version": "1.0.0",
+  "window": { "title": "Hello from HTML App", "width": 720, "height": 520 }
+}
+</script>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 15px/1.6 system-ui, sans-serif;
+    margin: 0; padding: 3rem;
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+  h1 { margin: 0; font-size: 1.6rem; }
+  .muted { opacity: .7; }
+  code {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    padding: .15em .4em; border-radius: 4px;
+  }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0; }
+  dt { opacity: .7; }
+</style>
+</head>
+<body>
+  <h1>Hello from HTML App</h1>
+  <p class="muted">
+    This file has a manifest but no <code>permissions</code> block, so it gets no native
+    APIs at all — it is a page in a window. That is the safe default, and it is silent.
+  </p>
+
+  <dl id="facts"></dl>
+
+  <p class="muted">
+    Rename this file to <code>.html</code> and it opens in any browser, without native APIs.
+    The manifest block above is inert to browsers, so devtools stay usable while you write.
+  </p>
+
+<script type="module">
+  const facts = document.getElementById('facts');
+  const rows = {
+    'Runtime version': htmlapp.version,
+    'Modules available': Object.keys(htmlapp)
+      .filter(k => typeof htmlapp[k] === 'object' && htmlapp[k] !== null)
+      .join(', ') || '(none)',
+    'htmlapp.fs': typeof htmlapp.fs,
+    'Frozen': Object.isFrozen(htmlapp) ? 'yes' : 'no',
+  };
+  for (const [label, value] of Object.entries(rows)) {
+    facts.insertAdjacentHTML('beforeend',
+      `<dt>${label}</dt><dd><code>${value}</code></dd>`);
+  }
+</script>
+</body>
+</html>

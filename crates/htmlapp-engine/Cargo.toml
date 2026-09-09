@@ -1,0 +1,43 @@
+[package]
+name = "htmlapp-engine"
+description = "The WebEngine abstraction and its backends for HTML App"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["wry-backend"]
+# The backend that ships today: wry, embedded as a child surface in the GPUI window.
+wry-backend = ["dep:wry", "dep:gtk", "dep:webkit2gtk-sys", "dep:raw-window-handle", "dep:x11rb"]
+# PRD §6.2 target backend. Requires libwpe + wpewebkit-2.0, which is not yet packaged on most
+# distributions (§16 R3), so it is opt-in and compiled only where those libraries exist.
+wpe-backend = []
+# Exposes the engine inspector. Off by default: a document should not ship with devtools
+# reachable unless its author asked for it.
+devtools = ["wry?/devtools"]
+
+[dependencies]
+htmlapp-caps.workspace = true
+htmlapp-bridge.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+dirs.workspace = true
+parking_lot.workspace = true
+
+wry = { version = "0.57", optional = true }
+gtk = { version = "0.18", optional = true }
+webkit2gtk-sys = { version = "2.0", optional = true }
+raw-window-handle = { version = "0.6", optional = true }
+x11rb = { version = "0.13", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+htmlapp-bridge.workspace = true
+sha2.workspace = true
+base64.workspace = true

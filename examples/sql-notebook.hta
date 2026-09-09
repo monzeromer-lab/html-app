@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!--
+  UC4 — a SQLite query notebook.
+
+  Exercises: sql (prepared statements, streamed results), dialog.save, clipboard.
+  The database is created on first run, so this example works with no setup.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "SQL Notebook",
+  "id": "dev.htmlapp.sqlnotebook",
+  "version": "1.0.0",
+  "window": { "title": "SQL Notebook", "width": 1000, "height": 700 },
+  "permissions": {
+    "sql":   { "databases": ["~/.local/share/htmlapp/apps/dev.htmlapp.sqlnotebook/**"] },
+    "clipboard": ["write"],
+    "store": true
+  }
+}
+</script>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; height: 100vh;
+         display: flex; flex-direction: column; }
+  #editor {
+    font: 13px/1.5 ui-monospace, monospace; padding: 1rem; border: none; resize: none;
+    min-height: 9rem; background: color-mix(in srgb, currentColor 4%, transparent);
+    color: inherit; outline: none;
+  }
+  .bar { display: flex; gap: .5rem; align-items: center; padding: .6rem 1rem;
+         border-block: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+  button { font: inherit; padding: .35rem .8rem; border-radius: 6px; cursor: pointer;
+           border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+           background: transparent; color: inherit; }
+  button:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  #out { flex: 1; overflow: auto; }
+  table { border-collapse: collapse; width: 100%; font: 13px/1.4 ui-monospace, monospace; }
+  th, td { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid
+           color-mix(in srgb, currentColor 12%, transparent); white-space: nowrap; }
+  th { position: sticky; top: 0; background: Canvas; }
+  .msg { padding: 1rem; opacity: .75; }
+  .err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+  <textarea id="editor" spellcheck="false"></textarea>
+  <div class="bar">
+    <button class="primary" id="run">Run  ⌘↵</button>
+    <button id="seed">Create sample data</button>
+    <button id="copy">Copy TSV</button>
+    <span id="status" style="opacity:.7"></span>
+  </div>
+  <div id="out"><div class="msg">Run a query to see results.</div></div>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const paths = await htmlapp.os?.paths?.() ?? null;
+  // Scoped to this app's own directory, which is what the manifest grants.
+  const DB = 'notebook.db';
+  let rows = [], columns = [];
+
+  const escape = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  async function run() {
+    const sql = $('editor').value.trim();
+    if (!sql) return;
+    $('status').textContent = 'Running…';
+    const started = performance.now();
+
+    try {
+      // A statement that returns rows goes through query; anything else through execute.
+      if (/^\s*(select|with|pragma|explain)/i.test(sql)) {
+        rows = await htmlapp.sql.query({ database: DB, sql });
+        columns = rows.length ? Object.keys(rows[0]) : [];
+        renderTable();
+      } else {
+        const result = await htmlapp.sql.execute({ database: DB, sql });
+        rows = []; columns = [];
+        $('out').innerHTML = `<div class="msg">${result.rowsAffected} row(s) affected.</div>`;
+      }
+      $('status').textContent = `${Math.round(performance.now() - started)} ms`;
+    } catch (e) {
+      $('out').innerHTML = `<div class="msg err">${escape(e.message)}</div>`;
+      $('status').textContent = e.code;
+    }
+  }
+
+  function renderTable() {
+    if (!rows.length) {
+      $('out').innerHTML = '<div class="msg">No rows.</div>';
+      return;
+    }
+    $('out').innerHTML =
+      `<table><thead><tr>${columns.map(c => `<th>${escape(c)}</th>`).join('')}</tr></thead>` +
+      `<tbody>${rows.map(r =>
+        `<tr>${columns.map(c => `<td>${escape(r[c] ?? '')}</td>`).join('')}</tr>`
+      ).join('')}</tbody></table>`;
+  }
+
+  $('run').onclick = run;
+  $('editor').onkeydown = e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); run(); }
+  };
+
+  $('seed').onclick = async () => {
+    // Parameters are bound, not interpolated — the API takes prepared statements.
+    await htmlapp.sql.transaction({ database: DB, statements: [
+      { sql: 'CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY, name TEXT, ms INTEGER)' },
+      { sql: 'DELETE FROM runs' },
+      { sql: 'INSERT INTO runs (name, ms) VALUES (?, ?)', params: ['build', 1240] },
+      { sql: 'INSERT INTO runs (name, ms) VALUES (?, ?)', params: ['test', 3810] },
+      { sql: 'INSERT INTO runs (name, ms) VALUES (?, ?)', params: ['lint', 220] },
+      { sql: 'INSERT INTO runs (name, ms) VALUES (?, ?)', params: ['deploy', 9050] },
+    ]});
+    $('editor').value = 'SELECT name, ms FROM runs ORDER BY ms DESC';
+    run();
+  };
+
+  $('copy').onclick = () => {
+    if (!rows.length) return;
+    const tsv = [columns.join('\t'), ...rows.map(r => columns.map(c => r[c]).join('\t'))].join('\n');
+    htmlapp.clipboard.writeText({ text: tsv });
+    $('status').textContent = 'Copied';
+  };
+
+  $('editor').value = (await htmlapp.store.get({ key: 'sql' }))
+    ?? "-- Click 'Create sample data', then run this.\nSELECT name, ms FROM runs ORDER BY ms DESC;";
+  $('editor').onchange = () => htmlapp.store.set({ key: 'sql', value: $('editor').value });
+</script>
+</body>
+</html>
