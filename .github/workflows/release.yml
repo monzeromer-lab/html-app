@@ -152,7 +152,11 @@ jobs:
           fi
           sed -i "1s/^htmlapp (.*)/htmlapp ($version)/" debian/changelog
 
-          DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b
+          # `-d` skips the build-dependency check. The Build-Depends in packaging/debian/control
+          # are right for a Debian build, but here rustc and cargo come from rustup rather than
+          # apt, and no noble package satisfies `rustc (>= 1.90)`. Without `-d`,
+          # dpkg-checkbuilddeps aborts the run before it compiles anything.
+          DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b -d
           mkdir -p dist && mv ../htmlapp_*.deb dist/
 
       - name: Inspect the package
@@ -191,17 +195,17 @@ jobs:
       - name: Fetch appimagetool
         run: |
           set -euo pipefail
-          curl -fsSL -o /usr/local/bin/appimagetool \
+          sudo curl -fsSL -o /usr/local/bin/appimagetool \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /usr/local/bin/appimagetool
+          sudo chmod +x /usr/local/bin/appimagetool
 
       - name: Build
         run: |
           set -euo pipefail
-          # The script builds with default features; the release binary wants the optional
-          # backends, so it is built first and reused.
-          cargo build --release --locked -p htmlapp --features "$RELEASE_FEATURES"
-          ./packaging/appimage/build-appimage.sh
+          # The script does the cargo build. `HTMLAPP_FEATURES` is what keeps that build in step
+          # with the tarball's: a plain run of the script builds default features, which would
+          # make the AppImage the one artefact without usb, bluetooth, and layer-shell.
+          HTMLAPP_FEATURES="$RELEASE_FEATURES" ./packaging/appimage/build-appimage.sh
           mkdir -p dist && mv target/HtmlApp-*.AppImage dist/
           ( cd dist && sha256sum HtmlApp-*.AppImage > "$(ls HtmlApp-*.AppImage).sha256" )
           ls -lh dist/

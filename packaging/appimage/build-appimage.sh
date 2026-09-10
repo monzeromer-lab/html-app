@@ -9,6 +9,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 appdir="$root/target/HtmlApp.AppDir"
 arch="$(uname -m)"
+# Cargo features for the bundled binary. The release workflow passes the same set the tarball
+# ships; empty — a plain local run — means default features.
+features="${HTMLAPP_FEATURES:-}"
 
 command -v appimagetool >/dev/null || {
   echo "appimagetool is not on PATH." >&2
@@ -16,8 +19,13 @@ command -v appimagetool >/dev/null || {
   exit 1
 }
 
-echo "==> Building the release binary"
-cargo build --release --locked --bin htmlapp --manifest-path "$root/Cargo.toml"
+echo "==> Building the release binary${features:+ with $features}"
+build=(--release --locked -p htmlapp --bin htmlapp --manifest-path "$root/Cargo.toml")
+# `if` rather than `&&`: under `set -e` a false test on the last line of the script would exit.
+if [ -n "$features" ]; then
+  build+=(--features "$features")
+fi
+cargo build "${build[@]}"
 
 echo "==> Assembling $appdir"
 rm -rf "$appdir"
