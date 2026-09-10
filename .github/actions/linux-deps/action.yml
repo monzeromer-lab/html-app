@@ -51,4 +51,4 @@ runs:
           echo "::error::missing pkg-config packages: ${missing[*]}"
           exit 1
         fi
-        echo "all ${#missing[@]:-0} required pkg-config packages present"
+        echo "all required pkg-config packages are present"
