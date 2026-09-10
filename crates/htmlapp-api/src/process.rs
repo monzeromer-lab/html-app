@@ -53,7 +53,7 @@ impl ProcessModule {
     /// cannot outlive its window by leaving a subprocess running.
     pub fn kill_all(&self) {
         let mut children = self.children.lock();
-        for (_, child) in children.iter_mut() {
+        for child in children.values_mut() {
             if let Some(kill) = child.kill.take() {
                 let _ = kill.send(());
             }
