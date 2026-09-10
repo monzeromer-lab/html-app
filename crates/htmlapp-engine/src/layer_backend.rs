@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use gtk::prelude::{ContainerExt as _, GtkWindowExt as _, WidgetExt as _};
+use gtk::prelude::{ContainerExt as _, GtkWindowExt as _, WidgetExt};
 use gtk_layer_shell::LayerShell as _;
 use htmlapp_caps::{Anchor, KeyboardInteractivity, Layer, WindowMode, WindowSpec};
 use wry::http::Request;
@@ -128,9 +128,10 @@ impl LayerEngine {
         if config.transparent {
             // An alpha-capable visual, or the surface composites onto black rather than onto the
             // desktop — which is very visible on a bar with a translucent background.
-            use gtk::gdk::prelude::ScreenExt as _;
             window.set_app_paintable(true);
-            if let Some(screen) = window.screen()
+            // `screen()` is on both `GtkWindowExt` and `WidgetExt`, with the same signature and
+            // the same answer for a toplevel; naming the trait is what makes it unambiguous.
+            if let Some(screen) = WidgetExt::screen(&window)
                 && let Some(visual) = screen.rgba_visual()
             {
                 window.set_visual(Some(&visual));

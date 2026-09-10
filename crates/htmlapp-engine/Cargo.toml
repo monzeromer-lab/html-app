@@ -41,7 +41,13 @@ parking_lot.workspace = true
 wry = { version = "0.57", optional = true }
 gtk = { version = "0.18", optional = true }
 # Pinned to the same gtk-rs generation wry uses; a mismatch would mean two incompatible GTKs.
-gtk-layer-shell = { version = "0.8", optional = true }
+#
+# `v0_6` is not about the crate version but the system library's: the bindings gate each entry point
+# behind the release that introduced it, and this backend calls two gated ones — `is_supported`
+# (library 0.5) and `set_keyboard_mode` (0.6). Without the feature they are compiled out and the
+# build fails with "not found in `gtk_layer_shell`". 0.6 is from 2021; anything new enough to have
+# webkit2gtk-4.1 has it.
+gtk-layer-shell = { version = "0.8", optional = true, features = ["v0_6"] }
 webkit2gtk-sys = { version = "2.0", optional = true }
 raw-window-handle = { version = "0.6", optional = true }
 x11rb = { version = "0.13", optional = true, features = ["shape"] }

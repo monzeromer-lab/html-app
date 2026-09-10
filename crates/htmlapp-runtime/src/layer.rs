@@ -8,7 +8,7 @@ use std::sync::Arc;
 use htmlapp_bridge::Dispatcher;
 use htmlapp_caps::WindowMode;
 use htmlapp_engine::layer_backend::LayerEngine;
-use htmlapp_engine::{EngineCallbacks, EngineEvent, WebEngine, wry_backend};
+use htmlapp_engine::{EngineCallbacks, EngineEvent, wry_backend};
 
 use crate::host::{HostState, RuntimeHost};
 use crate::session::{Result, Session, SessionError};
