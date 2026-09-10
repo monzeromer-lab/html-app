@@ -4,8 +4,10 @@
 #
 #     git tag v0.1.0 && git push origin v0.1.0
 #
-# `workflow_dispatch` builds everything without publishing, which is how to test a change to this
-# file without burning a tag.
+# `workflow_dispatch` from a branch builds everything without publishing, which is how to test a
+# change to this file without burning a tag. Publishing needs the run's ref to *be* a tag: both the
+# release name and the .deb version are taken from it, so a branch run has nothing to name a
+# release after.
 #
 # The asset names are a contract with `install.sh`, which fetches
 # `htmlapp-<arch>-linux.tar.gz` and verifies the `.sha256` beside it. Renaming an asset here
@@ -18,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish a draft release from this run'
+        description: 'Publish a draft release from this run (only when the ref is a tag)'
         type: boolean
         default: false
 
@@ -243,7 +245,13 @@ jobs:
         run: ls -lh artifacts/
 
       - name: Publish
-        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        # `action-gh-release` names the release after `github.ref`, so this can only run when that
+        # ref is a tag — a tag push, or a dispatch whose ref is a tag. The old `|| inputs.publish`
+        # let a dispatch from a branch reach here, where the action tried to create a release for
+        # the tag `refs/heads/master` and got "Missing tag_name parameter" back. The .deb depends
+        # on the ref the same way: a branch run versions it `0.0.0+<sha>`, so publishing one would
+        # have shipped a release whose package claims a version no release has.
+        if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.publish)
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
@@ -273,3 +281,9 @@ jobs:
 
             Built with `layer-shell`, `usb`, and `bluetooth` enabled. `plugin` (WebAssembly) is
             not included — build from source with `--features htmlapp-api/plugin` if you need it.
+
+      - name: Explain a skipped publish
+        # Asking for a publish and getting a green run with no release is its own kind of confusing.
+        if: ${{ inputs.publish && !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          echo "::warning::Nothing was published: ${{ github.ref }} is not a tag. The release name and the .deb version both come from the ref. Push a tag (git tag v0.1.0 && git push origin v0.1.0), or re-run this workflow with a tag as its ref."
