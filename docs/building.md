@@ -28,6 +28,7 @@ Rust 1.90 or newer.
 | udev | `libudev-dev` | `systemd-devel` | `systemd-libs` |
 | X11 | `libx11-dev` | `libX11-devel` | `libx11` |
 | xkbcommon | `libxkbcommon-dev` | `libxkbcommon-devel` | `libxkbcommon` |
+| xkbcommon-x11 | `libxkbcommon-x11-dev` | `libxkbcommon-x11-devel` | *(with xkbcommon)* |
 | Wayland | `libwayland-dev` | `wayland-devel` | `wayland` |
 | fontconfig | `libfontconfig1-dev` | `fontconfig-devel` | `fontconfig` |
 | FreeType | `libfreetype-dev` | `freetype-devel` | `freetype2` |
@@ -35,7 +36,10 @@ Rust 1.90 or newer.
 | OpenSSL | `libssl-dev` | `openssl-devel` | `openssl` |
 
 `udev` is easy to miss: nothing names it directly, but `serialport` and the `udev` module both pull
-in `libudev-sys`, which probes for it. CI installs this exact list from
+in `libudev-sys`, which probes for it. `xkbcommon-x11` is the other one — a separate package from
+`xkbcommon` on Debian and Fedora, wanted by gpui's X11 backend, and absent from the list it fails
+at link time with `unable to find library -lxkbcommon-x11` rather than with a pkg-config error. CI
+installs this exact list from
 [`.github/actions/linux-deps`](../.github/actions/linux-deps/action.yml), which is the canonical
 copy.
 

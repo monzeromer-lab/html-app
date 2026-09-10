@@ -6,11 +6,18 @@
 # before, and a package missing from one copy is a build that fails several minutes in with a
 # pkg-config error that names a `.pc` file rather than a package.
 #
-# Each entry is the package that owns the `.pc` file a `-sys` crate probes for. To re-derive the
-# list after adding a dependency:
+# Most entries are the package that owns the `.pc` file a `-sys` crate probes for. To re-derive
+# that part of the list after adding a dependency:
 #
 #     cargo tree --workspace --edges normal,build --prefix none | grep -oE '^[a-z0-9_-]+-sys'
 #     pkg-config --variable=pcfiledir <name>     # then: dpkg -S <dir>/<name>.pc
+#
+# `-sys` crates are not the whole story. A crate can name a library in a `#[link]` attribute with
+# no build script and no pkg-config probe at all, in which case a missing package surfaces as
+# `unable to find library -lfoo` from the linker rather than as a pkg-config error. `xkbcommon-x11`
+# arrives that way, via gpui's default `x11` feature. To find those:
+#
+#     grep -rn '#\[link(' ~/.cargo/registry/src/*/*/src --include='*.rs' | grep -v framework
 name: Install Linux build dependencies
 description: apt-get the system libraries htmlapp links against
 
@@ -30,6 +37,7 @@ runs:
           libudev-dev \
           libx11-dev \
           libxkbcommon-dev \
+          libxkbcommon-x11-dev \
           libwayland-dev \
           libfontconfig1-dev \
           libfreetype-dev \
@@ -42,7 +50,7 @@ runs:
       run: |
         set -euo pipefail
         missing=()
-        for pc in libudev fontconfig freetype2 x11 wayland-client xkbcommon \
+        for pc in libudev fontconfig freetype2 x11 wayland-client xkbcommon xkbcommon-x11 \
                   webkit2gtk-4.1 javascriptcoregtk-4.1 libsoup-3.0 gtk+-3.0 \
                   vulkan openssl gtk-layer-shell-0; do
           pkg-config --exists "$pc" || missing+=("$pc")
