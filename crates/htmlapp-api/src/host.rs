@@ -45,7 +45,11 @@ impl ApiHandler for HostModule {
         self.name
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move { self.host.call(self.name, method, params).await })
     }
 }

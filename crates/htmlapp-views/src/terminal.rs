@@ -13,7 +13,9 @@ use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column as GridColumn, Line as GridLine, Point};
 use alacritty_terminal::term::{Config, Term};
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor, Processor};
-use gpui::{AnyElement, IntoElement, ParentElement, Rgba, SharedString, Styled, div, px, rems, rgb};
+use gpui::{
+    AnyElement, IntoElement, ParentElement, Rgba, SharedString, Styled, div, px, rems, rgb,
+};
 use serde_json::Value;
 
 use crate::{NativeView, ViewKind};
@@ -301,12 +303,11 @@ impl TerminalView {
             }
 
             rows.push(
-                div()
-                    .flex()
-                    .h(px(CELL_HEIGHT))
-                    .children(spans.into_iter().map(|(text, color)| {
+                div().flex().h(px(CELL_HEIGHT)).children(
+                    spans.into_iter().map(|(text, color)| {
                         div().text_color(color).child(SharedString::from(text))
-                    })),
+                    }),
+                ),
             );
         }
 

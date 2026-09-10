@@ -105,7 +105,11 @@ impl InstallPaths {
         Some(Self {
             applications: data.join("applications"),
             mime_packages: data.join("mime").join("packages"),
-            icons: data.join("icons").join("hicolor").join("scalable").join("apps"),
+            icons: data
+                .join("icons")
+                .join("hicolor")
+                .join("scalable")
+                .join("apps"),
         })
     }
 
@@ -237,7 +241,9 @@ pub fn write_manifest_icon(manifest: &Manifest, output: &Path) -> Option<PathBuf
 
     let bytes = if header.ends_with(";base64") {
         use base64::Engine as _;
-        base64::engine::general_purpose::STANDARD.decode(payload).ok()?
+        base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .ok()?
     } else {
         payload.as_bytes().to_vec()
     };

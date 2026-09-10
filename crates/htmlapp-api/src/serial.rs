@@ -101,13 +101,17 @@ impl ApiHandler for SerialModule {
     }
 
     #[cfg(feature = "tier4")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "list" => {
-                    let ports = serialport::available_ports()
-                        .map_err(|e| RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                    let ports = serialport::available_ports().map_err(|e| {
+                        RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                    })?;
                     // Only ports the manifest covers are reported: enumeration should not be a way
                     // to discover what else is attached.
                     let listed: Vec<Value> = ports
@@ -115,12 +119,12 @@ impl ApiHandler for SerialModule {
                         .filter(|port| self.check_port(&port.port_name).is_ok())
                         .map(|port| {
                             let (kind, manufacturer, product) = match &port.port_type {
-                                serialport::SerialPortType::UsbPort(info) => (
-                                    "usb",
-                                    info.manufacturer.clone(),
-                                    info.product.clone(),
-                                ),
-                                serialport::SerialPortType::BluetoothPort => ("bluetooth", None, None),
+                                serialport::SerialPortType::UsbPort(info) => {
+                                    ("usb", info.manufacturer.clone(), info.product.clone())
+                                }
+                                serialport::SerialPortType::BluetoothPort => {
+                                    ("bluetooth", None, None)
+                                }
                                 serialport::SerialPortType::PciPort => ("pci", None, None),
                                 serialport::SerialPortType::Unknown => ("unknown", None, None),
                             };
@@ -139,25 +143,26 @@ impl ApiHandler for SerialModule {
                     let params: OpenParams = decode("serial.open", params)?;
                     self.check_port(&params.port)?;
 
-                    let builder = serialport::new(&params.port, params.baud_rate.unwrap_or(115_200))
-                        .data_bits(match params.data_bits.unwrap_or(8) {
-                            5 => serialport::DataBits::Five,
-                            6 => serialport::DataBits::Six,
-                            7 => serialport::DataBits::Seven,
-                            _ => serialport::DataBits::Eight,
-                        })
-                        .parity(match params.parity.as_deref() {
-                            Some("odd") => serialport::Parity::Odd,
-                            Some("even") => serialport::Parity::Even,
-                            _ => serialport::Parity::None,
-                        })
-                        .stop_bits(match params.stop_bits.unwrap_or(1) {
-                            2 => serialport::StopBits::Two,
-                            _ => serialport::StopBits::One,
-                        })
-                        // A read timeout rather than a block, so the reader thread can notice the
-                        // port has been closed instead of sitting in the kernel forever.
-                        .timeout(std::time::Duration::from_millis(200));
+                    let builder =
+                        serialport::new(&params.port, params.baud_rate.unwrap_or(115_200))
+                            .data_bits(match params.data_bits.unwrap_or(8) {
+                                5 => serialport::DataBits::Five,
+                                6 => serialport::DataBits::Six,
+                                7 => serialport::DataBits::Seven,
+                                _ => serialport::DataBits::Eight,
+                            })
+                            .parity(match params.parity.as_deref() {
+                                Some("odd") => serialport::Parity::Odd,
+                                Some("even") => serialport::Parity::Even,
+                                _ => serialport::Parity::None,
+                            })
+                            .stop_bits(match params.stop_bits.unwrap_or(1) {
+                                2 => serialport::StopBits::Two,
+                                _ => serialport::StopBits::One,
+                            })
+                            // A read timeout rather than a block, so the reader thread can notice the
+                            // port has been closed instead of sitting in the kernel forever.
+                            .timeout(std::time::Duration::from_millis(200));
 
                     let writer = builder.open().map_err(|e| {
                         RpcError::new(
@@ -195,7 +200,11 @@ impl ApiHandler for SerialModule {
                     let handle = self.next.fetch_add(1, Ordering::SeqCst);
                     self.ports.lock().insert(
                         handle,
-                        OpenPort { writer, reader: Some(rx), port: params.port },
+                        OpenPort {
+                            writer,
+                            reader: Some(rx),
+                            port: params.port,
+                        },
                     );
                     Ok(json!(handle))
                 }
@@ -204,9 +213,9 @@ impl ApiHandler for SerialModule {
                     let params: WriteParams = decode("serial.write", params)?;
                     use std::io::Write as _;
                     let mut ports = self.ports.lock();
-                    let port = ports.get_mut(&params.handle).ok_or_else(|| {
-                        RpcError::invalid_params("no such serial handle")
-                    })?;
+                    let port = ports
+                        .get_mut(&params.handle)
+                        .ok_or_else(|| RpcError::invalid_params("no such serial handle"))?;
                     port.writer.write_all(params.data.as_bytes()).map_err(|e| {
                         RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
                     })?;
@@ -226,7 +235,11 @@ impl ApiHandler for SerialModule {
     }
 
     #[cfg(not(feature = "tier4"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async { Err(RpcError::unsupported("this build has no serial support")) })
     }
 

@@ -133,8 +133,7 @@ mod x11_grab {
     const NUM_LOCK: u16 = 1 << 4;
     /// CapsLock.
     const CAPS_LOCK: u16 = 1 << 1;
-    const LOCK_COMBINATIONS: [u16; 4] =
-        [0, NUM_LOCK, CAPS_LOCK, NUM_LOCK | CAPS_LOCK];
+    const LOCK_COMBINATIONS: [u16; 4] = [0, NUM_LOCK, CAPS_LOCK, NUM_LOCK | CAPS_LOCK];
 
     fn parse(accelerator: &str) -> Option<(u16, u8)> {
         let mut modifiers = 0u16;
@@ -179,7 +178,11 @@ mod x11_grab {
             "tab" => 23,
             f if f.starts_with('f') && f[1..].parse::<u8>().is_ok() => {
                 let n: u8 = f[1..].parse().ok()?;
-                if (1..=12).contains(&n) { 66 + n } else { return None }
+                if (1..=12).contains(&n) {
+                    66 + n
+                } else {
+                    return None;
+                }
             }
             _ => return None,
         };
@@ -276,7 +279,11 @@ impl ApiHandler for ShortcutModule {
         "shortcut"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "register" => {
@@ -291,10 +298,7 @@ impl ApiHandler for ShortcutModule {
                         // and it works on XWayland — which is where documents run anyway.
                         let mut x11 = self.x11.lock();
                         if x11.is_none() {
-                            *x11 = x11_grab::spawn(
-                                self.events.clone(),
-                                Arc::clone(&self.bindings),
-                            );
+                            *x11 = x11_grab::spawn(self.events.clone(), Arc::clone(&self.bindings));
                         }
                         let Some(sender) = x11.as_ref() else {
                             return Err(RpcError::unsupported(

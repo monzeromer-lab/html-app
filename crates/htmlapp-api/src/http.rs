@@ -133,7 +133,11 @@ impl ApiHandler for HttpModule {
         "http"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier1")]

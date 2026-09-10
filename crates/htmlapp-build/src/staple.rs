@@ -100,10 +100,11 @@ pub fn extract(binary: &Path) -> Result<Option<Vec<u8>>> {
         })?;
 
     let mut trailer = [0u8; TRAILER_LEN];
-    file.read_exact(&mut trailer).map_err(|source| StapleError::Io {
-        path: binary.to_path_buf(),
-        source,
-    })?;
+    file.read_exact(&mut trailer)
+        .map_err(|source| StapleError::Io {
+            path: binary.to_path_buf(),
+            source,
+        })?;
 
     if &trailer[..12] != MAGIC {
         return Ok(None);
@@ -123,19 +124,18 @@ pub fn extract(binary: &Path) -> Result<Option<Vec<u8>>> {
         });
     }
 
-    file.seek(SeekFrom::End(
-        -((TRAILER_LEN as i64) + document_len as i64),
-    ))
-    .map_err(|source| StapleError::Io {
-        path: binary.to_path_buf(),
-        source,
-    })?;
+    file.seek(SeekFrom::End(-((TRAILER_LEN as i64) + document_len as i64)))
+        .map_err(|source| StapleError::Io {
+            path: binary.to_path_buf(),
+            source,
+        })?;
 
     let mut document = vec![0u8; document_len as usize];
-    file.read_exact(&mut document).map_err(|source| StapleError::Io {
-        path: binary.to_path_buf(),
-        source,
-    })?;
+    file.read_exact(&mut document)
+        .map_err(|source| StapleError::Io {
+            path: binary.to_path_buf(),
+            source,
+        })?;
 
     Ok(Some(document))
 }

@@ -36,10 +36,13 @@ async fn fs_reads_inside_the_scope_and_refuses_outside_it() {
     std::fs::write(allowed.join("ok.txt"), b"visible").unwrap();
     std::fs::write(root.join("secret.txt"), b"hidden").unwrap();
 
-    let fs = FsModule::new(ctx(&format!(
-        r#"{{"fs":{{"read":["{}/**"]}}}}"#,
-        allowed.display()
-    )), htmlapp_bridge::BlobStore::new());
+    let fs = FsModule::new(
+        ctx(&format!(
+            r#"{{"fs":{{"read":["{}/**"]}}}}"#,
+            allowed.display()
+        )),
+        htmlapp_bridge::BlobStore::new(),
+    );
 
     let inside = call(&fs, "read", json!({ "path": allowed.join("ok.txt") }))
         .await
@@ -62,10 +65,13 @@ async fn fs_refuses_to_read_through_a_symlink_out_of_scope() {
     std::fs::write(root.join("secret.txt"), b"hidden").unwrap();
     std::os::unix::fs::symlink(root.join("secret.txt"), allowed.join("link.txt")).unwrap();
 
-    let fs = FsModule::new(ctx(&format!(
-        r#"{{"fs":{{"read":["{}/**"]}}}}"#,
-        allowed.display()
-    )), htmlapp_bridge::BlobStore::new());
+    let fs = FsModule::new(
+        ctx(&format!(
+            r#"{{"fs":{{"read":["{}/**"]}}}}"#,
+            allowed.display()
+        )),
+        htmlapp_bridge::BlobStore::new(),
+    );
 
     let error = call(&fs, "read", json!({ "path": allowed.join("link.txt") }))
         .await
@@ -80,10 +86,10 @@ async fn fs_read_grant_does_not_confer_write() {
     let root = std::fs::canonicalize(temp.path()).unwrap();
     std::fs::write(root.join("a.txt"), b"original").unwrap();
 
-    let fs = FsModule::new(ctx(&format!(
-        r#"{{"fs":{{"read":["{}/**"]}}}}"#,
-        root.display()
-    )), htmlapp_bridge::BlobStore::new());
+    let fs = FsModule::new(
+        ctx(&format!(r#"{{"fs":{{"read":["{}/**"]}}}}"#, root.display())),
+        htmlapp_bridge::BlobStore::new(),
+    );
 
     let error = call(
         &fs,
@@ -93,7 +99,10 @@ async fn fs_read_grant_does_not_confer_write() {
     .await
     .expect_err("a read grant must not allow writing");
     assert_eq!(error.code, ErrorCode::PermissionDenied);
-    assert_eq!(std::fs::read_to_string(root.join("a.txt")).unwrap(), "original");
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).unwrap(),
+        "original"
+    );
 }
 
 /// A rename removes the source, so it needs write on both ends.
@@ -105,11 +114,14 @@ async fn fs_rename_requires_write_on_both_ends() {
     std::fs::create_dir_all(&writable).unwrap();
     std::fs::write(root.join("readonly.txt"), b"x").unwrap();
 
-    let fs = FsModule::new(ctx(&format!(
-        r#"{{"fs":{{"read":["{root}/**"],"write":["{writable}/**"]}}}}"#,
-        root = root.display(),
-        writable = writable.display()
-    )), htmlapp_bridge::BlobStore::new());
+    let fs = FsModule::new(
+        ctx(&format!(
+            r#"{{"fs":{{"read":["{root}/**"],"write":["{writable}/**"]}}}}"#,
+            root = root.display(),
+            writable = writable.display()
+        )),
+        htmlapp_bridge::BlobStore::new(),
+    );
 
     // Source is readable but not writable: refused.
     let error = call(
@@ -131,13 +143,18 @@ async fn fs_list_omits_entries_outside_the_scope() {
     std::fs::write(root.join("visible.log"), b"x").unwrap();
     std::fs::write(root.join("secret.key"), b"x").unwrap();
 
-    let fs = FsModule::new(ctx(&format!(
-        r#"{{"fs":{{"read":["{}/*.log","{}"]}}}}"#,
-        root.display(),
-        root.display()
-    )), htmlapp_bridge::BlobStore::new());
+    let fs = FsModule::new(
+        ctx(&format!(
+            r#"{{"fs":{{"read":["{}/*.log","{}"]}}}}"#,
+            root.display(),
+            root.display()
+        )),
+        htmlapp_bridge::BlobStore::new(),
+    );
 
-    let listed = call(&fs, "list", json!({ "path": root.clone() })).await.unwrap();
+    let listed = call(&fs, "list", json!({ "path": root.clone() }))
+        .await
+        .unwrap();
     let names: Vec<&str> = listed
         .as_array()
         .unwrap()
@@ -145,7 +162,10 @@ async fn fs_list_omits_entries_outside_the_scope() {
         .filter_map(|e| e["name"].as_str())
         .collect();
     assert!(names.contains(&"visible.log"));
-    assert!(!names.contains(&"secret.key"), "listed an ungranted file: {names:?}");
+    assert!(
+        !names.contains(&"secret.key"),
+        "listed an ungranted file: {names:?}"
+    );
 }
 
 /// A document with no `fs` grant reaches nothing, even for a world-readable path.
@@ -191,7 +211,10 @@ async fn process_allow_list_distinguishes_a_name_from_a_path() {
 async fn process_pty_needs_its_own_grant() {
     let process = ProcessModule::new(ctx(r#"{"process":{"exec":["echo"],"pty":false}}"#));
     // `ValueStream` is not Debug, so this cannot use `expect_err`.
-    match process.open_stream("pty", json!({ "program": "echo" })).await {
+    match process
+        .open_stream("pty", json!({ "program": "echo" }))
+        .await
+    {
         Err(error) => assert_eq!(error.code, ErrorCode::PermissionDenied),
         Ok(_) => panic!("pty must need `process.pty`"),
     }
@@ -230,7 +253,11 @@ async fn process_streams_output_then_exits() {
         .filter(|e| e["kind"] == "stdout")
         .filter_map(|e| e["data"].as_str())
         .collect();
-    assert_eq!(output, ["one", "two"], "output must not be lost to the exit race");
+    assert_eq!(
+        output,
+        ["one", "two"],
+        "output must not be lost to the exit race"
+    );
 }
 
 // --- os ---
@@ -240,11 +267,20 @@ async fn process_streams_output_then_exits() {
 async fn os_env_withholds_likely_credentials() {
     let os = OsModule::new(ctx(r#"{"os":true}"#));
 
-    for name in ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "MY_API_KEY", "DB_PASSWORD"] {
+    for name in [
+        "GITHUB_TOKEN",
+        "AWS_SECRET_ACCESS_KEY",
+        "MY_API_KEY",
+        "DB_PASSWORD",
+    ] {
         let error = call(&os, "env", json!({ "name": name }))
             .await
             .expect_err("{name} should be withheld");
-        assert_eq!(error.code, ErrorCode::PermissionDenied, "{name} was returned");
+        assert_eq!(
+            error.code,
+            ErrorCode::PermissionDenied,
+            "{name} was returned"
+        );
     }
 
     // Ordinary variables still work.
@@ -286,7 +322,9 @@ async fn store_round_trips_and_is_scoped_to_the_app() {
         .await
         .unwrap();
     assert_eq!(
-        call(&store, "get", json!({ "key": "theme" })).await.unwrap(),
+        call(&store, "get", json!({ "key": "theme" }))
+            .await
+            .unwrap(),
         json!("dark")
     );
     assert_eq!(
@@ -294,9 +332,13 @@ async fn store_round_trips_and_is_scoped_to_the_app() {
         json!(["theme"])
     );
 
-    call(&store, "delete", json!({ "key": "theme" })).await.unwrap();
+    call(&store, "delete", json!({ "key": "theme" }))
+        .await
+        .unwrap();
     assert_eq!(
-        call(&store, "get", json!({ "key": "theme" })).await.unwrap(),
+        call(&store, "get", json!({ "key": "theme" }))
+            .await
+            .unwrap(),
         Value::Null
     );
 }
@@ -307,17 +349,38 @@ async fn store_round_trips_and_is_scoped_to_the_app() {
 fn url_matching_enforces_scheme_host_and_path() {
     use htmlapp_api::context::url_matches;
 
-    assert!(url_matches("https://api.example.com/*", "https://api.example.com/v1/x"));
-    assert!(!url_matches("https://api.example.com/*", "http://api.example.com/v1/x"));
-    assert!(!url_matches("https://api.example.com/*", "https://evil.example/x"));
+    assert!(url_matches(
+        "https://api.example.com/*",
+        "https://api.example.com/v1/x"
+    ));
+    assert!(!url_matches(
+        "https://api.example.com/*",
+        "http://api.example.com/v1/x"
+    ));
+    assert!(!url_matches(
+        "https://api.example.com/*",
+        "https://evil.example/x"
+    ));
 
     // Suffix confusion, again at this layer.
-    assert!(url_matches("https://*.example.com/**", "https://api.example.com/x"));
-    assert!(!url_matches("https://*.example.com/**", "https://notexample.com/x"));
+    assert!(url_matches(
+        "https://*.example.com/**",
+        "https://api.example.com/x"
+    ));
+    assert!(!url_matches(
+        "https://*.example.com/**",
+        "https://notexample.com/x"
+    ));
 
     // A path glob really does narrow.
-    assert!(url_matches("https://h.example/v1/*", "https://h.example/v1/users"));
-    assert!(!url_matches("https://h.example/v1/*", "https://h.example/v2/users"));
+    assert!(url_matches(
+        "https://h.example/v1/*",
+        "https://h.example/v1/users"
+    ));
+    assert!(!url_matches(
+        "https://h.example/v1/*",
+        "https://h.example/v2/users"
+    ));
 }
 
 // --- blob tokens (docs/bridge.md) ---
@@ -354,7 +417,10 @@ async fn fs_blob_only_mints_tokens_for_granted_paths() {
 
     let blobs = htmlapp_bridge::BlobStore::new();
     let fs = htmlapp_api::fs::FsModule::new(
-        ctx(&format!(r#"{{"fs":{{"read":["{}/**"]}}}}"#, allowed.display())),
+        ctx(&format!(
+            r#"{{"fs":{{"read":["{}/**"]}}}}"#,
+            allowed.display()
+        )),
         blobs.clone(),
     );
 

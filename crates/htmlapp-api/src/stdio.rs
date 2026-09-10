@@ -62,7 +62,11 @@ impl ApiHandler for StdioModule {
         "stdio"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "read" => {
@@ -82,7 +86,9 @@ impl ApiHandler for StdioModule {
                         .map_err(|e| RpcError::internal(e.to_string()))?;
                     // Flushed every time: a pipeline consumer downstream should see output as it
                     // is produced, not when the process happens to exit.
-                    out.flush().await.map_err(|e| RpcError::internal(e.to_string()))?;
+                    out.flush()
+                        .await
+                        .map_err(|e| RpcError::internal(e.to_string()))?;
                     Ok(Value::Null)
                 }
                 "writeErr" => {
@@ -91,7 +97,9 @@ impl ApiHandler for StdioModule {
                     err.write_all(params.data.as_bytes())
                         .await
                         .map_err(|e| RpcError::internal(e.to_string()))?;
-                    err.flush().await.map_err(|e| RpcError::internal(e.to_string()))?;
+                    err.flush()
+                        .await
+                        .map_err(|e| RpcError::internal(e.to_string()))?;
                     Ok(Value::Null)
                 }
                 "exit" => {

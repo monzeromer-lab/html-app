@@ -109,8 +109,18 @@ enum ArgClass {
     Float,
 }
 
+/// JSON arguments marshalled into one uniform register class.
+struct Marshalled {
+    class: ArgClass,
+    integers: Vec<i64>,
+    floats: Vec<f64>,
+    /// C strings the call borrows. They must outlive it, and may outlive it if the callee keeps
+    /// the pointer, so ownership is handed back to the caller.
+    retained: Vec<CString>,
+}
+
 /// Marshal JSON arguments into one uniform register class.
-fn classify(args: &[Value]) -> Result<(ArgClass, Vec<i64>, Vec<f64>, Vec<CString>), RpcError> {
+fn classify(args: &[Value]) -> Result<Marshalled, RpcError> {
     let any_float = args
         .iter()
         .any(|arg| arg.as_f64().is_some_and(|f| f.fract() != 0.0));
@@ -126,11 +136,9 @@ fn classify(args: &[Value]) -> Result<(ArgClass, Vec<i64>, Vec<f64>, Vec<CString
 
     for arg in args {
         match (class, arg) {
-            (ArgClass::Float, value) => floats.push(
-                value
-                    .as_f64()
-                    .ok_or_else(|| RpcError::invalid_params("mixed integer and float arguments are not supported"))?,
-            ),
+            (ArgClass::Float, value) => floats.push(value.as_f64().ok_or_else(|| {
+                RpcError::invalid_params("mixed integer and float arguments are not supported")
+            })?),
             (ArgClass::Integer, Value::Bool(b)) => integers.push(*b as i64),
             (ArgClass::Integer, Value::Number(n)) => integers.push(
                 n.as_i64()
@@ -140,8 +148,9 @@ fn classify(args: &[Value]) -> Result<(ArgClass, Vec<i64>, Vec<f64>, Vec<CString
             (ArgClass::Integer, Value::String(text)) => {
                 // A string is passed as a `const char *`. The CString must outlive the call, and
                 // may outlive it if the callee keeps the pointer, so it is retained.
-                let owned = CString::new(text.as_str())
-                    .map_err(|_| RpcError::invalid_params("string arguments may not contain NUL"))?;
+                let owned = CString::new(text.as_str()).map_err(|_| {
+                    RpcError::invalid_params("string arguments may not contain NUL")
+                })?;
                 integers.push(owned.as_ptr() as i64);
                 retained.push(owned);
             }
@@ -153,7 +162,12 @@ fn classify(args: &[Value]) -> Result<(ArgClass, Vec<i64>, Vec<f64>, Vec<CString
         }
     }
 
-    Ok((class, integers, floats, retained))
+    Ok(Marshalled {
+        class,
+        integers,
+        floats,
+        retained,
+    })
 }
 
 #[cfg(feature = "tier4")]
@@ -164,11 +178,13 @@ impl FfiModule {
     /// consent sheet, that this library and this signature are correct. If either is wrong the
     /// behaviour is undefined. That is what the threat model means by "the escape hatch that voids the model",
     /// and it is why the consent sheet reports `ffi` as `Extreme` and lists it first.
-    fn call_symbol(
-        &self,
-        params: CallParams,
-    ) -> Result<Value, RpcError> {
-        let (class, integers, floats, retained) = classify(&params.args)?;
+    fn call_symbol(&self, params: CallParams) -> Result<Value, RpcError> {
+        let Marshalled {
+            class,
+            integers,
+            floats,
+            retained,
+        } = classify(&params.args)?;
 
         let mut libraries = self.libraries.lock();
         let entry = libraries
@@ -205,13 +221,31 @@ impl FfiModule {
                     let f = integers.get(5).copied().unwrap_or(0);
                     unsafe {
                         match n {
-                            0 => std::mem::transmute::<_, extern "C" fn() -> i64>(address)(),
-                            1 => std::mem::transmute::<_, extern "C" fn(i64) -> i64>(address)(a),
-                            2 => std::mem::transmute::<_, extern "C" fn(i64, i64) -> i64>(address)(a, b),
-                            3 => std::mem::transmute::<_, extern "C" fn(i64, i64, i64) -> i64>(address)(a, b, c),
-                            4 => std::mem::transmute::<_, extern "C" fn(i64, i64, i64, i64) -> i64>(address)(a, b, c, d),
-                            5 => std::mem::transmute::<_, extern "C" fn(i64, i64, i64, i64, i64) -> i64>(address)(a, b, c, d, e),
-                            _ => std::mem::transmute::<_, extern "C" fn(i64, i64, i64, i64, i64, i64) -> i64>(address)(a, b, c, d, e, f),
+                            0 => {
+                                std::mem::transmute::<*const (), extern "C" fn() -> i64>(address)()
+                            }
+                            1 => std::mem::transmute::<*const (), extern "C" fn(i64) -> i64>(
+                                address,
+                            )(a),
+                            2 => std::mem::transmute::<*const (), extern "C" fn(i64, i64) -> i64>(
+                                address,
+                            )(a, b),
+                            3 => std::mem::transmute::<
+                                *const (),
+                                extern "C" fn(i64, i64, i64) -> i64,
+                            >(address)(a, b, c),
+                            4 => std::mem::transmute::<
+                                *const (),
+                                extern "C" fn(i64, i64, i64, i64) -> i64,
+                            >(address)(a, b, c, d),
+                            5 => std::mem::transmute::<
+                                *const (),
+                                extern "C" fn(i64, i64, i64, i64, i64) -> i64,
+                            >(address)(a, b, c, d, e),
+                            _ => std::mem::transmute::<
+                                *const (),
+                                extern "C" fn(i64, i64, i64, i64, i64, i64) -> i64,
+                            >(address)(a, b, c, d, e, f),
                         }
                     }
                 };
@@ -234,11 +268,20 @@ impl FfiModule {
                 let d = floats.get(3).copied().unwrap_or(0.0);
                 unsafe {
                     match floats.len() {
-                        0 => std::mem::transmute::<_, extern "C" fn() -> f64>(address)(),
-                        1 => std::mem::transmute::<_, extern "C" fn(f64) -> f64>(address)(a),
-                        2 => std::mem::transmute::<_, extern "C" fn(f64, f64) -> f64>(address)(a, b),
-                        3 => std::mem::transmute::<_, extern "C" fn(f64, f64, f64) -> f64>(address)(a, b, c),
-                        _ => std::mem::transmute::<_, extern "C" fn(f64, f64, f64, f64) -> f64>(address)(a, b, c, d),
+                        0 => std::mem::transmute::<*const (), extern "C" fn() -> f64>(address)(),
+                        1 => {
+                            std::mem::transmute::<*const (), extern "C" fn(f64) -> f64>(address)(a)
+                        }
+                        2 => std::mem::transmute::<*const (), extern "C" fn(f64, f64) -> f64>(
+                            address,
+                        )(a, b),
+                        3 => std::mem::transmute::<*const (), extern "C" fn(f64, f64, f64) -> f64>(
+                            address,
+                        )(a, b, c),
+                        _ => std::mem::transmute::<
+                            *const (),
+                            extern "C" fn(f64, f64, f64, f64) -> f64,
+                        >(address)(a, b, c, d),
                     }
                 }
             }
@@ -256,9 +299,11 @@ impl FfiModule {
                 } else {
                     // SAFETY: the caller declared this returns a NUL-terminated string. If it does
                     // not, this reads out of bounds — see the note on this function.
-                    json!(unsafe { std::ffi::CStr::from_ptr(pointer) }
-                        .to_string_lossy()
-                        .into_owned())
+                    json!(
+                        unsafe { std::ffi::CStr::from_ptr(pointer) }
+                            .to_string_lossy()
+                            .into_owned()
+                    )
                 }
             }
             "bool" => json!(raw as i64 != 0),
@@ -273,7 +318,11 @@ impl ApiHandler for FfiModule {
     }
 
     #[cfg(feature = "tier4")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "open" => {
@@ -282,12 +331,13 @@ impl ApiHandler for FfiModule {
 
                     // SAFETY: dlopen runs the library's initialisers. There is no way to make that
                     // safe; the manifest and the consent sheet are the control.
-                    let library = unsafe { libloading::Library::new(&params.library) }.map_err(|e| {
-                        RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed,
-                            format!("could not load {}: {e}", params.library),
-                        )
-                    })?;
+                    let library =
+                        unsafe { libloading::Library::new(&params.library) }.map_err(|e| {
+                            RpcError::new(
+                                htmlapp_bridge::ErrorCode::OperationFailed,
+                                format!("could not load {}: {e}", params.library),
+                            )
+                        })?;
 
                     let handle = self.next.fetch_add(1, Ordering::SeqCst);
                     tracing::warn!(
@@ -297,7 +347,11 @@ impl ApiHandler for FfiModule {
                     );
                     self.libraries.lock().insert(
                         handle,
-                        OpenLibrary { library, path: params.library, retained: Vec::new() },
+                        OpenLibrary {
+                            library,
+                            path: params.library,
+                            retained: Vec::new(),
+                        },
                     );
                     Ok(json!(handle))
                 }
@@ -319,7 +373,11 @@ impl ApiHandler for FfiModule {
     }
 
     #[cfg(not(feature = "tier4"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async { Err(RpcError::unsupported("this build has no ffi support")) })
     }
 }

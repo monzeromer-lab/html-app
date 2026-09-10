@@ -58,8 +58,8 @@ impl StoreModule {
 
     fn save(&self, map: BTreeMap<String, Value>) -> Result<(), RpcError> {
         let path = self.path()?;
-        let json = serde_json::to_string_pretty(&map)
-            .map_err(|e| RpcError::internal(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(&map).map_err(|e| RpcError::internal(e.to_string()))?;
         let temp = path.with_extension("json.tmp");
         std::fs::write(&temp, json).map_err(|e| RpcError::internal(e.to_string()))?;
         std::fs::rename(&temp, &path).map_err(|e| RpcError::internal(e.to_string()))?;
@@ -73,12 +73,20 @@ impl ApiHandler for StoreModule {
         "store"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "get" => {
                     let params: KeyParams = decode("store.get", params)?;
-                    Ok(self.load()?.get(&params.key).cloned().unwrap_or(Value::Null))
+                    Ok(self
+                        .load()?
+                        .get(&params.key)
+                        .cloned()
+                        .unwrap_or(Value::Null))
                 }
                 "set" => {
                     let params: SetParams = decode("store.set", params)?;

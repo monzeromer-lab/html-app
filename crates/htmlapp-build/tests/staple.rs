@@ -15,7 +15,9 @@ fn stapled_document_round_trips() {
     let output = temp.path().join("tool");
     staple::staple(&runtime, document, &output).unwrap();
 
-    let extracted = staple::extract(&output).unwrap().expect("a stapled document");
+    let extracted = staple::extract(&output)
+        .unwrap()
+        .expect("a stapled document");
     assert_eq!(extracted, document);
 
     // The whole point is that it can be executed.

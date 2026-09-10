@@ -51,7 +51,9 @@ impl ConsentRequest {
 
     /// Whether this request adds capability over what was previously trusted.
     pub fn is_escalation(&self) -> bool {
-        self.diff.as_ref().is_some_and(PermissionDiff::is_escalation)
+        self.diff
+            .as_ref()
+            .is_some_and(PermissionDiff::is_escalation)
     }
 
     /// The highest risk level anywhere in the request, which sets the sheet's tone.
@@ -207,14 +209,10 @@ impl ConsentSheet {
             .bg(theme.surface)
             .border_b_1()
             .border_color(theme.border)
-            .child(
-                div()
-                    .text_size(rems(1.1))
-                    .child(SharedString::from(format!(
-                        "{} wants access to this computer",
-                        request.app_name
-                    ))),
-            )
+            .child(div().text_size(rems(1.1)).child(SharedString::from(format!(
+                "{} wants access to this computer",
+                request.app_name
+            ))))
             // The security model, rule 3 requires the source path: the file's own name is chosen by whoever
             // wrote it, so it is not evidence of anything.
             .child(
@@ -261,10 +259,18 @@ impl ConsentSheet {
                 .p_3()
                 .rounded(px(8.0))
                 .border_1()
-                .border_color(if escalating { theme.warning } else { theme.border })
+                .border_color(if escalating {
+                    theme.warning
+                } else {
+                    theme.border
+                })
                 .child(
                     div()
-                        .text_color(if escalating { theme.warning } else { theme.text })
+                        .text_color(if escalating {
+                            theme.warning
+                        } else {
+                            theme.text
+                        })
                         .child("This file has changed since you last allowed it."),
                 )
                 .children(lines.into_iter().map(|line| {
@@ -318,17 +324,14 @@ impl ConsentSheet {
                                     .text_color(theme.text)
                                     .child(SharedString::from(description.summary.clone())),
                             )
-                            .child(
-                                div()
-                                    .text_size(rems(0.7))
-                                    .text_color(risk_color)
-                                    .child(SharedString::from(match description.risk {
-                                        Risk::Low => "low risk",
-                                        Risk::Medium => "medium risk",
-                                        Risk::High => "high risk",
-                                        Risk::Extreme => "voids every other protection",
-                                    })),
-                            ),
+                            .child(div().text_size(rems(0.7)).text_color(risk_color).child(
+                                SharedString::from(match description.risk {
+                                    Risk::Low => "low risk",
+                                    Risk::Medium => "medium risk",
+                                    Risk::High => "high risk",
+                                    Risk::Extreme => "voids every other protection",
+                                }),
+                            )),
                     )
                     .child(
                         div()

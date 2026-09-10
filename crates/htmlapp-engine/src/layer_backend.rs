@@ -26,7 +26,10 @@ use wry::http::Request;
 
 use crate::origin::{self, OriginResolver};
 use crate::wry_backend::{describe_build_failure, serve};
-use crate::{EngineCallbacks, EngineConfig, EngineError, EngineEvent, RenderPath, Result, ViewRect, WebEngine};
+use crate::{
+    EngineCallbacks, EngineConfig, EngineError, EngineEvent, RenderPath, Result, ViewRect,
+    WebEngine,
+};
 
 /// A page hosted directly in a layer-shell surface.
 pub struct LayerEngine {
@@ -110,8 +113,16 @@ impl LayerEngine {
         let spans_vertically = window_spec.anchor.contains(&Anchor::Top)
             && window_spec.anchor.contains(&Anchor::Bottom);
         window.set_default_size(
-            if spans_horizontally { -1 } else { window_spec.width as i32 },
-            if spans_vertically { -1 } else { window_spec.height as i32 },
+            if spans_horizontally {
+                -1
+            } else {
+                window_spec.width as i32
+            },
+            if spans_vertically {
+                -1
+            } else {
+                window_spec.height as i32
+            },
         );
 
         if config.transparent {

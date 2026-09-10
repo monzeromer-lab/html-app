@@ -4,9 +4,7 @@ use std::collections::BTreeMap;
 
 use htmlapp_caps::{Document, ImportSpec, Manifest};
 use htmlapp_engine::imports::{ImportError, ModuleFetcher};
-use htmlapp_engine::origin::{
-    Response, allows_navigation, default_csp, prepare_document,
-};
+use htmlapp_engine::origin::{Response, allows_navigation, default_csp, prepare_document};
 use htmlapp_engine::{ModuleCache, OriginResolver};
 
 fn manifest(json: &str) -> Manifest {
@@ -66,9 +64,16 @@ fn asset_root_cannot_be_escaped() {
     let resolver = OriginResolver::new(String::new(), Some(app.clone()), None);
     assert!(matches!(resolver.resolve("/in.txt"), Response::Ok { .. }));
 
-    for escape in ["/../outside.txt", "/%2e%2e/outside.txt", "/a/../../outside.txt"] {
+    for escape in [
+        "/../outside.txt",
+        "/%2e%2e/outside.txt",
+        "/a/../../outside.txt",
+    ] {
         assert!(
-            matches!(resolver.resolve(escape), Response::Forbidden | Response::NotFound),
+            matches!(
+                resolver.resolve(escape),
+                Response::Forbidden | Response::NotFound
+            ),
             "{escape} escaped the asset root"
         );
     }
@@ -86,8 +91,14 @@ fn csp_connect_src_follows_the_manifest() {
     let permissive = manifest(r#"{"permissions":{"net":{"fetch":["https://api.example.com/*"]}}}"#);
     let csp = default_csp(&permissive);
     assert!(csp.contains("connect-src"));
-    assert!(csp.contains("https://api.example.com"), "granted origin missing: {csp}");
-    assert!(!csp.contains("connect-src *"), "wildcard connect-src: {csp}");
+    assert!(
+        csp.contains("https://api.example.com"),
+        "granted origin missing: {csp}"
+    );
+    assert!(
+        !csp.contains("connect-src *"),
+        "wildcard connect-src: {csp}"
+    );
 
     // A document that was granted no network gets no network.
     let bare = manifest("{}");
@@ -109,7 +120,10 @@ fn csp_is_injected_into_head() {
     assert!(prepared.contains("Content-Security-Policy"));
     let meta = prepared.find("Content-Security-Policy").unwrap();
     let title = prepared.find("<title>").unwrap();
-    assert!(meta < title, "the CSP meta must precede the rest of the head");
+    assert!(
+        meta < title,
+        "the CSP meta must precede the rest of the head"
+    );
 }
 
 /// A document with no `<head>` still gets a CSP.
@@ -140,7 +154,10 @@ fn manifest_can_override_the_csp() {
     )
     .unwrap();
     let prepared = prepare_document(&document, &[]);
-    assert!(prepared.contains("default-src &#x27;none&#x27;") || prepared.contains("default-src 'none'"));
+    assert!(
+        prepared.contains("default-src &#x27;none&#x27;")
+            || prepared.contains("default-src 'none'")
+    );
 }
 
 // --- the goals and non-goals, N2: not a browser ---
@@ -167,7 +184,10 @@ fn wildcard_subdomains_do_not_match_the_apex_or_a_suffix_lookalike() {
     // Suffix confusion: these end with the granted characters but are different domains.
     assert!(!allows_navigation("https://notexample.com/x", &granted));
     assert!(!allows_navigation("https://evilexample.com/x", &granted));
-    assert!(allows_navigation("https://deep.api.example.com/x", &granted));
+    assert!(allows_navigation(
+        "https://deep.api.example.com/x",
+        &granted
+    ));
 }
 
 // --- import maps ---
@@ -235,7 +255,10 @@ fn module_is_fetched_verified_then_served_from_cache() {
     // And it is reachable over the origin.
     let resolver = OriginResolver::new(String::new(), None, Some(temp.path().into()));
     match resolver.resolve(&resolved[0].1) {
-        Response::Ok { body: served, content_type } => {
+        Response::Ok {
+            body: served,
+            content_type,
+        } => {
             assert_eq!(served, body);
             assert!(content_type.starts_with("text/javascript"));
         }
@@ -255,8 +278,14 @@ fn module_whose_body_does_not_match_its_pin_is_rejected() {
         .resolve_all(&imports_of(&hash), &StubFetcher(tampered))
         .expect_err("a body that does not match its pin must be refused");
 
-    assert!(matches!(error, ImportError::IntegrityMismatch { .. }), "got {error:?}");
-    assert!(!cache.is_cached(&hash), "a rejected module must not be cached");
+    assert!(
+        matches!(error, ImportError::IntegrityMismatch { .. }),
+        "got {error:?}"
+    );
+    assert!(
+        !cache.is_cached(&hash),
+        "a rejected module must not be cached"
+    );
 }
 
 #[test]
@@ -287,7 +316,9 @@ fn cache_purge_empties_it() {
     let temp = tempfile::tempdir().unwrap();
     let cache = ModuleCache::new(temp.path());
     let (body, hash) = body_and_hash();
-    cache.resolve_all(&imports_of(&hash), &StubFetcher(body)).unwrap();
+    cache
+        .resolve_all(&imports_of(&hash), &StubFetcher(body))
+        .unwrap();
 
     assert!(cache.size() > 0);
     assert_eq!(cache.purge().unwrap(), 1);
@@ -305,8 +336,7 @@ fn blob_tokens_are_served_and_scoped_to_the_token() {
     let blobs = htmlapp_bridge::BlobStore::new();
     blobs.insert("abc123", &file);
 
-    let resolver =
-        OriginResolver::with_blobs(String::new(), None, None, blobs.clone());
+    let resolver = OriginResolver::with_blobs(String::new(), None, None, blobs.clone());
 
     match resolver.resolve("/__blob__/abc123") {
         Response::Ok { body, .. } => assert_eq!(body, b"a lot of bytes"),
@@ -348,7 +378,10 @@ fn blob_paths_cannot_be_traversed() {
 #[test]
 fn blob_token_parsing_accepts_only_plain_tokens() {
     use htmlapp_bridge::BlobStore;
-    assert_eq!(BlobStore::token_from_path("/__blob__/abc123"), Some("abc123"));
+    assert_eq!(
+        BlobStore::token_from_path("/__blob__/abc123"),
+        Some("abc123")
+    );
     assert_eq!(BlobStore::token_from_path("/__blob__/a/b"), None);
     assert_eq!(BlobStore::token_from_path("/__blob__/"), None);
     assert_eq!(BlobStore::token_from_path("/__blob__/a.b"), None);

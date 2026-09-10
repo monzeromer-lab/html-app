@@ -59,7 +59,10 @@ pub struct MenuEntry {
 /// Flatten the manifest-shaped menu JSON into drawable entries.
 pub fn flatten_menu(items: &[Value], depth: usize, out: &mut Vec<MenuEntry>) {
     for item in items {
-        let separator = item.get("separator").and_then(|v| v.as_bool()).unwrap_or(false);
+        let separator = item
+            .get("separator")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         if separator {
             out.push(MenuEntry {
                 id: String::new(),
@@ -73,10 +76,21 @@ pub fn flatten_menu(items: &[Value], depth: usize, out: &mut Vec<MenuEntry>) {
         }
 
         out.push(MenuEntry {
-            id: item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            label: item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: item
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            label: item
+                .get("label")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             separator: false,
-            enabled: item.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+            enabled: item
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true),
             checked: item.get("checked").and_then(|v| v.as_bool()),
             depth,
         });
@@ -91,23 +105,38 @@ pub fn flatten_menu(items: &[Value], depth: usize, out: &mut Vec<MenuEntry>) {
 #[derive(Debug, Clone)]
 pub enum HostCommand {
     SetTitle(String),
-    Resize { width: f32, height: f32 },
-    Move { x: f32, y: f32 },
+    Resize {
+        width: f32,
+        height: f32,
+    },
+    Move {
+        x: f32,
+        y: f32,
+    },
     Fullscreen(bool),
     Minimize,
     Maximize(bool),
     AlwaysOnTop(bool),
     Close,
     /// Open the command palette overlay.
-    OpenPalette { query: Option<String> },
+    OpenPalette {
+        query: Option<String>,
+    },
     ClosePalette,
     /// Show a message, confirm, or prompt sheet.
-    Dialog { kind: String, params: Value },
+    Dialog {
+        kind: String,
+        params: Value,
+    },
     SetOpacity(f32),
     SetInputRegion(Option<Vec<htmlapp_engine::ViewRect>>),
-    OpenWindow { path: Option<String> },
+    OpenWindow {
+        path: Option<String>,
+    },
     /// Begin dragging files out of this window (the API catalog `dnd.startDrag`).
-    StartDrag { paths: Vec<std::path::PathBuf> },
+    StartDrag {
+        paths: Vec<std::path::PathBuf>,
+    },
 }
 
 /// The concrete view behind an `<htmlapp-view>` element.
@@ -116,7 +145,9 @@ pub enum HostCommand {
 /// trait is not declared that way — the set of view kinds is closed and known, so naming them
 /// costs nothing and keeps the bound honest.
 pub enum ViewBackend {
-    Terminal(htmlapp_views::TerminalView),
+    /// Boxed: a terminal carries a full scrollback grid and is an order of magnitude larger than
+    /// the other variants, which would otherwise pad every `ViewState` to its size.
+    Terminal(Box<htmlapp_views::TerminalView>),
     Table(htmlapp_views::TableView),
     /// A kind this build does not implement yet (the roadmap, M8).
     Unimplemented(String),
@@ -125,9 +156,7 @@ pub enum ViewBackend {
 impl ViewBackend {
     fn create(kind: &str) -> Self {
         match htmlapp_views::ViewKind::parse(kind) {
-            Some(htmlapp_views::ViewKind::Terminal) => {
-                ViewBackend::Terminal(htmlapp_views::TerminalView::default())
-            }
+            Some(htmlapp_views::ViewKind::Terminal) => ViewBackend::Terminal(Box::default()),
             Some(htmlapp_views::ViewKind::Table) => {
                 ViewBackend::Table(htmlapp_views::TableView::new())
             }
@@ -146,7 +175,7 @@ impl ViewBackend {
 
     fn as_native(&mut self) -> Option<&mut dyn htmlapp_views::NativeView> {
         match self {
-            ViewBackend::Terminal(view) => Some(view),
+            ViewBackend::Terminal(view) => Some(view.as_mut()),
             ViewBackend::Table(view) => Some(view),
             ViewBackend::Unimplemented(_) => None,
         }
@@ -275,12 +304,7 @@ impl HostBridge for RuntimeHost {
 }
 
 impl RuntimeHost {
-    async fn dispatch(
-        &self,
-        module: &str,
-        method: &str,
-        params: Value,
-    ) -> Result<Value, RpcError> {
+    async fn dispatch(&self, module: &str, method: &str, params: Value) -> Result<Value, RpcError> {
         if !self.has_window && module != "view" {
             return Err(RpcError::unsupported(format!(
                 "`{module}.{method}` needs a window; this document is running headless"
@@ -306,17 +330,18 @@ impl RuntimeHost {
                     _ => Err(RpcError::invalid_params("width and height are required")),
                 }
             }
-            ("window", "move") => {
-                match (number(&params, "x"), number(&params, "y")) {
-                    (Some(x), Some(y)) => {
-                        self.state.push(HostCommand::Move { x, y });
-                        Ok(Value::Null)
-                    }
-                    _ => Err(RpcError::invalid_params("x and y are required")),
+            ("window", "move") => match (number(&params, "x"), number(&params, "y")) {
+                (Some(x), Some(y)) => {
+                    self.state.push(HostCommand::Move { x, y });
+                    Ok(Value::Null)
                 }
-            }
+                _ => Err(RpcError::invalid_params("x and y are required")),
+            },
             ("window", "fullscreen") => {
-                let enabled = params.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                let enabled = params
+                    .get("enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
                 self.state.push(HostCommand::Fullscreen(enabled));
                 Ok(Value::Null)
             }
@@ -325,12 +350,18 @@ impl RuntimeHost {
                 Ok(Value::Null)
             }
             ("window", "maximize") => {
-                let enabled = params.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                let enabled = params
+                    .get("enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
                 self.state.push(HostCommand::Maximize(enabled));
                 Ok(Value::Null)
             }
             ("window", "setAlwaysOnTop") => {
-                let enabled = params.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+                let enabled = params
+                    .get("enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
                 self.state.push(HostCommand::AlwaysOnTop(enabled));
                 Ok(Value::Null)
             }
@@ -366,7 +397,8 @@ impl RuntimeHost {
                 // The process and instance model: every document is its own process, so a second window from the same file
                 // is a second process rather than a second surface in this one.
                 let path = string(&params, "path");
-                self.state.push(HostCommand::OpenWindow { path: path.clone() });
+                self.state
+                    .push(HostCommand::OpenWindow { path: path.clone() });
                 Ok(Value::Null)
             }
 
@@ -399,7 +431,10 @@ impl RuntimeHost {
             ("menu", "popup") => {
                 let mut entries = Vec::new();
                 flatten_menu(
-                    params.get("items").and_then(|v| v.as_array()).unwrap_or(&Vec::new()),
+                    params
+                        .get("items")
+                        .and_then(|v| v.as_array())
+                        .unwrap_or(&Vec::new()),
                     0,
                     &mut entries,
                 );
@@ -486,7 +521,9 @@ impl RuntimeHost {
                     ));
                 }
 
-                self.state.push(HostCommand::StartDrag { paths: paths.clone() });
+                self.state.push(HostCommand::StartDrag {
+                    paths: paths.clone(),
+                });
                 Ok(json!(
                     paths
                         .iter()
@@ -585,7 +622,10 @@ impl RuntimeHost {
                     return Err(RpcError::unsupported("this view kind is not implemented"));
                 };
                 native
-                    .call(&method, params.get("params").cloned().unwrap_or(Value::Null))
+                    .call(
+                        &method,
+                        params.get("params").cloned().unwrap_or(Value::Null),
+                    )
                     .map_err(RpcError::invalid_params)
             }
 
@@ -593,8 +633,9 @@ impl RuntimeHost {
             //
             // Enumerating outputs works whether or not layer-shell does: knowing which monitors
             // exist is useful to any document, not just a bar.
-            ("layer", "listOutputs") => Ok(serde_json::to_value(htmlapp_wayland::outputs())
-                .unwrap_or_else(|_| json!([]))),
+            ("layer", "listOutputs") => {
+                Ok(serde_json::to_value(htmlapp_wayland::outputs()).unwrap_or_else(|_| json!([])))
+            }
             ("layer", _) => Err(RpcError::unsupported(
                 "layer-shell control needs a Wayland session and the layer window mode",
             )),

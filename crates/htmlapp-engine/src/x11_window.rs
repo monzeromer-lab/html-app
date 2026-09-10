@@ -131,14 +131,7 @@ fn pid_of(
     net_wm_pid: xproto::Atom,
 ) -> Option<u32> {
     let reply = connection
-        .get_property(
-            false,
-            window,
-            net_wm_pid,
-            xproto::AtomEnum::CARDINAL,
-            0,
-            1,
-        )
+        .get_property(false, window, net_wm_pid, xproto::AtomEnum::CARDINAL, 0, 1)
         .ok()?
         .reply()
         .ok()?;

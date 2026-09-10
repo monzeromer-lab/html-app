@@ -11,9 +11,8 @@ fn permissions(json: &str) -> Permissions {
 /// The jail binds what the manifest granted, and only that.
 #[test]
 fn sandbox_binds_granted_paths_and_nothing_more() {
-    let granted = permissions(
-        r#"{"fs":{"read":["/var/log/nginx/*.log"],"write":["/tmp/htmlapp-test/**"]}}"#,
-    );
+    let granted =
+        permissions(r#"{"fs":{"read":["/var/log/nginx/*.log"],"write":["/tmp/htmlapp-test/**"]}}"#);
     let args = sandbox::arguments(Some(&granted), None);
     let joined = args.join(" ");
 
@@ -21,9 +20,15 @@ fn sandbox_binds_granted_paths_and_nothing_more() {
     // exact: a grant of `/var/log/nginx/*.log` must not put the whole of `/var/log` in the
     // namespace just because `nginx/` happens not to exist on this machine.
     assert!(joined.contains("--ro-bind-try /var/log/nginx"), "{joined}");
-    assert!(!joined.contains("--ro-bind-try /var/log /var/log "), "over-bound /var/log: {joined}");
+    assert!(
+        !joined.contains("--ro-bind-try /var/log /var/log "),
+        "over-bound /var/log: {joined}"
+    );
     assert!(joined.contains("--bind-try /tmp/htmlapp-test"), "{joined}");
-    assert!(!joined.contains("--bind-try /tmp /tmp"), "over-bound /tmp: {joined}");
+    assert!(
+        !joined.contains("--bind-try /tmp /tmp"),
+        "over-bound /tmp: {joined}"
+    );
 
     // The whole point: home is not in the namespace.
     let home = std::env::var("HOME").unwrap_or_default();
@@ -68,7 +73,10 @@ fn sandbox_refuses_to_bind_the_root() {
 fn sandbox_reports_whether_it_can_run() {
     // Both branches are valid; what matters is that asking does not panic.
     let _ = sandbox::is_available();
-    assert!(!sandbox::is_sandboxed(), "the test process is not in a jail");
+    assert!(
+        !sandbox::is_sandboxed(),
+        "the test process is not in a jail"
+    );
 }
 
 // --- the open questions Q9: configuration ---
@@ -77,8 +85,14 @@ fn sandbox_reports_whether_it_can_run() {
 #[test]
 fn config_defaults_match_the_prd() {
     let config = Config::default();
-    assert!(config.launcher, "the launch modes: a bare invocation opens the launcher");
-    assert!(config.recents, "the open questions Q8: store-with-purge, so recording is on");
+    assert!(
+        config.launcher,
+        "the launch modes: a bare invocation opens the launcher"
+    );
+    assert!(
+        config.recents,
+        "the open questions Q8: store-with-purge, so recording is on"
+    );
     assert!(!config.sandbox, "the security model, rule 7 is opt-in");
     assert!(!config.devtools);
 }

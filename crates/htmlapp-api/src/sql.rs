@@ -158,13 +158,16 @@ fn run_query(
     sql: &str,
     params: &[Value],
 ) -> Result<Vec<Value>, RpcError> {
-    let bound: Vec<rusqlite::types::Value> =
-        params.iter().map(to_sql).collect::<Result<_, _>>()?;
+    let bound: Vec<rusqlite::types::Value> = params.iter().map(to_sql).collect::<Result<_, _>>()?;
 
     let mut statement = connection
         .prepare(sql)
         .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
-    let columns: Vec<String> = statement.column_names().iter().map(|c| c.to_string()).collect();
+    let columns: Vec<String> = statement
+        .column_names()
+        .iter()
+        .map(|c| c.to_string())
+        .collect();
 
     let mut rows = statement
         .query(rusqlite::params_from_iter(bound))
@@ -191,7 +194,11 @@ impl ApiHandler for SqlModule {
     }
 
     #[cfg(feature = "tier1")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "open" => {
@@ -221,8 +228,12 @@ impl ApiHandler for SqlModule {
                             bound.iter().map(to_sql).collect::<Result<_, _>>()?;
                         let affected = connection
                             .execute(&sql, rusqlite::params_from_iter(values))
-                            .map_err(|e| RpcError::new(
-                                htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                            .map_err(|e| {
+                                RpcError::new(
+                                    htmlapp_bridge::ErrorCode::OperationFailed,
+                                    e.to_string(),
+                                )
+                            })?;
                         Ok(json!({
                             "rowsAffected": affected,
                             "lastInsertId": connection.last_insert_rowid(),
@@ -238,12 +249,19 @@ impl ApiHandler for SqlModule {
                             RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
                         })?;
                         for statement in &statements {
-                            let values: Vec<rusqlite::types::Value> =
-                                statement.params.iter().map(to_sql).collect::<Result<_, _>>()?;
+                            let values: Vec<rusqlite::types::Value> = statement
+                                .params
+                                .iter()
+                                .map(to_sql)
+                                .collect::<Result<_, _>>()?;
                             transaction
                                 .execute(&statement.sql, rusqlite::params_from_iter(values))
-                                .map_err(|e| RpcError::new(
-                                    htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                                .map_err(|e| {
+                                    RpcError::new(
+                                        htmlapp_bridge::ErrorCode::OperationFailed,
+                                        e.to_string(),
+                                    )
+                                })?;
                         }
                         // Any error above returns early and drops the transaction, which rolls it
                         // back — so a failed batch never lands half-applied.
@@ -260,7 +278,11 @@ impl ApiHandler for SqlModule {
     }
 
     #[cfg(not(feature = "tier1"))]
-    fn invoke<'a>(&'a self, method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         let method = method.to_string();
         Box::pin(async move {
             let _ = method;

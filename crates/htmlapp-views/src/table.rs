@@ -4,7 +4,9 @@
 //! million elements; this keeps one row of elements per visible line and indexes into a flat store,
 //! so memory is proportional to the viewport rather than the dataset.
 
-use gpui::{AnyElement, IntoElement, ParentElement, SharedString, Styled, div, px, rems, rgb, rgba};
+use gpui::{
+    AnyElement, IntoElement, ParentElement, SharedString, Styled, div, px, rems, rgb, rgba,
+};
 use serde_json::Value;
 
 use crate::{NativeView, ViewKind};
@@ -132,7 +134,10 @@ impl NativeView for TableView {
                                 .and_then(|n| n.as_str())
                                 .unwrap_or_default()
                                 .to_string(),
-                            width: other.get("width").and_then(|w| w.as_f64()).map(|w| w as f32),
+                            width: other
+                                .get("width")
+                                .and_then(|w| w.as_f64())
+                                .map(|w| w as f32),
                         },
                     })
                     .collect();
@@ -181,7 +186,9 @@ impl TableView {
     /// `<table>` (docs/bridge.md).
     pub fn element(&self, visible_height: f32) -> AnyElement {
         let capacity = ((visible_height / ROW_HEIGHT).ceil() as usize + 1).min(self.rows.len());
-        let first = self.scroll_top.min(self.rows.len().saturating_sub(capacity));
+        let first = self
+            .scroll_top
+            .min(self.rows.len().saturating_sub(capacity));
 
         let header = div()
             .flex()
@@ -209,16 +216,21 @@ impl TableView {
                 if self.selected == Some(index) {
                     line = line.bg(rgba(0x4c8dff33));
                 }
-                line.children(self.columns.iter().enumerate().map(|(column_index, column)| {
-                    let cell = div()
-                        .px_2()
-                        .overflow_hidden()
-                        .child(row.get(column_index).cloned().unwrap_or_default());
-                    match column.width {
-                        Some(width) => cell.w(px(width)),
-                        None => cell.flex_1(),
-                    }
-                }))
+                line.children(
+                    self.columns
+                        .iter()
+                        .enumerate()
+                        .map(|(column_index, column)| {
+                            let cell = div()
+                                .px_2()
+                                .overflow_hidden()
+                                .child(row.get(column_index).cloned().unwrap_or_default());
+                            match column.width {
+                                Some(width) => cell.w(px(width)),
+                                None => cell.flex_1(),
+                            }
+                        }),
+                )
             })
             .collect::<Vec<_>>();
 

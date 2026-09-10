@@ -255,7 +255,12 @@ impl Session {
         let granted: Vec<String> = self
             .granted
             .as_ref()
-            .map(|p| p.granted_modules().into_iter().map(str::to_string).collect())
+            .map(|p| {
+                p.granted_modules()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect()
+            })
             .unwrap_or_default();
 
         let mut recents = htmlapp_caps::Recents::load_default().unwrap_or_default();
@@ -271,8 +276,11 @@ impl Session {
     }
 }
 
+/// Import-map entries to inject, plus the cache directory they are served from.
+type ResolvedImports = (Vec<(String, String)>, Option<PathBuf>);
+
 /// Resolve and cache the document's pinned imports.
-fn resolve_imports(document: &Document) -> Result<(Vec<(String, String)>, Option<PathBuf>)> {
+fn resolve_imports(document: &Document) -> Result<ResolvedImports> {
     if document.manifest.imports.is_empty() {
         return Ok((Vec::new(), None));
     }

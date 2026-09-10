@@ -134,7 +134,10 @@ pub fn register_all(
     ));
     dispatcher.register(Arc::clone(&runtime_module) as Arc<dyn htmlapp_bridge::ApiHandler>);
 
-    let fs_module = Arc::new(fs::FsModule::new(Arc::clone(&ctx), registration.blobs.clone()));
+    let fs_module = Arc::new(fs::FsModule::new(
+        Arc::clone(&ctx),
+        registration.blobs.clone(),
+    ));
     let process_module = Arc::new(ProcessModule::new(Arc::clone(&ctx)));
 
     if granted.contains("fs") {

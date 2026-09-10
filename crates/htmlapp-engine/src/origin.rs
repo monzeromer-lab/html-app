@@ -20,7 +20,10 @@ pub const INDEX_URL: &str = "htmlapp://app/index.html";
 /// What the custom-protocol handler decided to serve.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Response {
-    Ok { body: Vec<u8>, content_type: String },
+    Ok {
+        body: Vec<u8>,
+        content_type: String,
+    },
     NotFound,
     /// The request resolved outside what the asset policy permits.
     Forbidden,
@@ -41,7 +44,12 @@ pub struct OriginResolver {
 
 impl OriginResolver {
     pub fn new(index: String, asset_root: Option<PathBuf>, module_root: Option<PathBuf>) -> Self {
-        Self::with_blobs(index, asset_root, module_root, htmlapp_bridge::BlobStore::new())
+        Self::with_blobs(
+            index,
+            asset_root,
+            module_root,
+            htmlapp_bridge::BlobStore::new(),
+        )
     }
 
     pub fn with_blobs(

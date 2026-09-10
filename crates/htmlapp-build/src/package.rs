@@ -10,11 +10,7 @@ use htmlapp_caps::Manifest;
 /// `appimagetool`, which is not something the runtime can supply. packaging and distribution promises the AppImage, so
 /// when the tool is missing the AppDir plus the exact command to finish the job is reported rather
 /// than silently skipping the output.
-pub fn write_appdir(
-    manifest: &Manifest,
-    binary: &Path,
-    appdir: &Path,
-) -> std::io::Result<PathBuf> {
+pub fn write_appdir(manifest: &Manifest, binary: &Path, appdir: &Path) -> std::io::Result<PathBuf> {
     let name = manifest.display_name();
     let id = manifest.id.as_deref().unwrap_or("htmlapp.app");
 
@@ -55,10 +51,7 @@ pub fn write_appdir(
     std::fs::set_permissions(&apprun_path, std::fs::Permissions::from_mode(0o755))?;
     std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755))?;
 
-    std::fs::write(
-        appdir.join(format!("{id}.svg")),
-        crate::desktop::ICON_SVG,
-    )?;
+    std::fs::write(appdir.join(format!("{id}.svg")), crate::desktop::ICON_SVG)?;
 
     Ok(appdir.to_path_buf())
 }

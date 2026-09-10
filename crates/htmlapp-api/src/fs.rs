@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_stream::try_stream;
-use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture, ValueStream};
 use htmlapp_bridge::RpcError;
+use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture, ValueStream};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -396,8 +396,8 @@ impl FsModule {
             match maps.get(&path) {
                 Some(existing) => Arc::clone(existing),
                 None => {
-                    let file = std::fs::File::open(&path)
-                        .map_err(|e| io_error("open", &path, e))?;
+                    let file =
+                        std::fs::File::open(&path).map_err(|e| io_error("open", &path, e))?;
                     // SAFETY-adjacent: a memory map aliases a file that another process can
                     // truncate underneath it, which would fault on access. `memmap2` documents
                     // this; the exposure is the same as any `mmap` and is why reads below are
@@ -453,7 +453,11 @@ impl ApiHandler for FsModule {
         "fs"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "read" => self.read(params).await,
@@ -483,7 +487,10 @@ impl ApiHandler for FsModule {
                 "readStream" => {
                     let params: ReadStreamParams = decode("fs.readStream", params)?;
                     let path = self.ctx.check_read(&params.path)?;
-                    let chunk_size = params.chunk_size.unwrap_or(64 * 1024).clamp(1, 4 * 1024 * 1024);
+                    let chunk_size = params
+                        .chunk_size
+                        .unwrap_or(64 * 1024)
+                        .clamp(1, 4 * 1024 * 1024);
                     Ok(Box::pin(read_stream(path, chunk_size)) as ValueStream)
                 }
                 "tail" => {
@@ -647,6 +654,8 @@ fn watch_stream(
     _recursive: bool,
 ) -> impl futures::Stream<Item = Result<Value, RpcError>> {
     futures::stream::once(async {
-        Err(RpcError::unsupported("this build has no filesystem watcher"))
+        Err(RpcError::unsupported(
+            "this build has no filesystem watcher",
+        ))
     })
 }

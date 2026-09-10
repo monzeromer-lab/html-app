@@ -138,7 +138,11 @@ impl ProcessModule {
         command
             .args(&params.args)
             .envs(&params.env)
-            .stdin(if params.stdin.is_some() { Stdio::piped() } else { Stdio::null() })
+            .stdin(if params.stdin.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
@@ -146,10 +150,12 @@ impl ProcessModule {
             command.current_dir(cwd);
         }
 
-        let mut child = command
-            .spawn()
-            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed,
-                format!("could not run {}: {e}", params.program)))?;
+        let mut child = command.spawn().map_err(|e| {
+            RpcError::new(
+                htmlapp_bridge::ErrorCode::OperationFailed,
+                format!("could not run {}: {e}", params.program),
+            )
+        })?;
 
         if let Some(input) = params.stdin
             && let Some(mut stdin) = child.stdin.take()
@@ -198,7 +204,12 @@ impl ProcessModule {
             return Err(RpcError::invalid_params("cannot signal a pty by pid"));
         }
 
-        let signal = match params.signal.trim_start_matches("SIG").to_ascii_uppercase().as_str() {
+        let signal = match params
+            .signal
+            .trim_start_matches("SIG")
+            .to_ascii_uppercase()
+            .as_str()
+        {
             "TERM" => 15,
             "KILL" => 9,
             "INT" => 2,
@@ -257,9 +268,12 @@ impl ProcessModule {
                 "that process has no open stdin",
             ));
         };
-        stdin
-            .send(params.data.into_bytes())
-            .map_err(|_| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, "process has exited"))?;
+        stdin.send(params.data.into_bytes()).map_err(|_| {
+            RpcError::new(
+                htmlapp_bridge::ErrorCode::OperationFailed,
+                "process has exited",
+            )
+        })?;
         Ok(Value::Null)
     }
 
@@ -284,7 +298,11 @@ impl ApiHandler for ProcessModule {
         "process"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "exec" => self.exec(params).await,
@@ -308,14 +326,20 @@ impl ApiHandler for ProcessModule {
                 "spawn" => {
                     let params: SpawnParams = decode("process.spawn", params)?;
                     let cwd = self.prepare(&params.program, params.cwd.as_ref())?;
-                    Ok(Box::pin(spawn_stream(Arc::clone(&self.children), params, cwd)) as ValueStream)
+                    Ok(
+                        Box::pin(spawn_stream(Arc::clone(&self.children), params, cwd))
+                            as ValueStream,
+                    )
                 }
                 "pty" => {
                     let params: PtyParams = decode("process.pty", params)?;
                     self.ctx.check_pty()?;
                     let cwd = self.prepare(&params.program, params.cwd.as_ref())?;
                     let id = self.next_synthetic.fetch_sub(1, Ordering::SeqCst);
-                    Ok(Box::pin(pty_stream(Arc::clone(&self.children), params, cwd, id)) as ValueStream)
+                    Ok(
+                        Box::pin(pty_stream(Arc::clone(&self.children), params, cwd, id))
+                            as ValueStream,
+                    )
                 }
                 other => Err(RpcError::not_found(&format!("process.{other}"))),
             }

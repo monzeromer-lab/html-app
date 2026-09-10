@@ -27,12 +27,12 @@ pub use manifest::{
     Anchor, AssetPolicy, Background, ImportSpec, KeyboardInteractivity, Layer, Manifest, Margin,
     Titlebar, WindowMode, WindowSpec,
 };
-pub use recents::{MAX_RECENTS, RecentEntry, Recents};
 pub use permissions::{
     ClipboardAccess, DbusPermission, DeniedPath, FsPermission, NetPermission, PathScope,
-    PermissionDescription, Permissions, PortalCapability, ProcessPermission, Risk, SocketPermission,
-    SqlPermission,
+    PermissionDescription, Permissions, PortalCapability, ProcessPermission, Risk,
+    SocketPermission, SqlPermission,
 };
+pub use recents::{MAX_RECENTS, RecentEntry, Recents};
 
 /// The version of the runtime, surfaced to the page as `htmlapp.version` (docs/bridge.md).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

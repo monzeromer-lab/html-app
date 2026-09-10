@@ -6,7 +6,7 @@
 
 mod delegate;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context as _, Result};
@@ -407,7 +407,10 @@ fn permissions(action: Option<PermissionsAction>) -> Result<i32> {
                 .with_context(|| format!("could not read {}", document.display()))?;
 
             let Some(requested) = loaded.manifest.permissions.clone() else {
-                println!("{} asks for nothing; there is nothing to grant.", document.display());
+                println!(
+                    "{} asks for nothing; there is nothing to grant.",
+                    document.display()
+                );
                 return Ok(0);
             };
 
@@ -437,7 +440,9 @@ fn permissions(action: Option<PermissionsAction>) -> Result<i32> {
                 true,
             );
             store.save_default()?;
-            println!("\nGranted. This is pinned to the file's current contents; editing it asks again.");
+            println!(
+                "\nGranted. This is pinned to the file's current contents; editing it asks again."
+            );
             Ok(0)
         }
 
@@ -467,10 +472,7 @@ fn permissions(action: Option<PermissionsAction>) -> Result<i32> {
                 removed += store.revoke_hash(&loaded.hash);
             }
             store.save_default()?;
-            println!(
-                "Revoked {removed} decision(s) for {}.",
-                canonical.display()
-            );
+            println!("Revoked {removed} decision(s) for {}.", canonical.display());
             Ok(0)
         }
 
@@ -548,7 +550,7 @@ fn uninstall(system: bool) -> Result<i32> {
 }
 
 /// `htmlapp build` (docs/building.md).
-fn build(document: &PathBuf, out: PathBuf, appimage: bool, flatpak: bool) -> Result<i32> {
+fn build(document: &Path, out: PathBuf, appimage: bool, flatpak: bool) -> Result<i32> {
     let options = htmlapp_build::BuildOptions {
         output_dir: out,
         appimage,

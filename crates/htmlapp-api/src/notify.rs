@@ -128,7 +128,9 @@ impl NotifyModule {
                 &(params.id,),
             )
             .await
-            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+            .map_err(|e| {
+                RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+            })?;
         Ok(Value::Null)
     }
 }
@@ -138,7 +140,11 @@ impl ApiHandler for NotifyModule {
         "notify"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]

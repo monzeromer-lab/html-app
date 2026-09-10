@@ -80,8 +80,8 @@ impl Config {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let text = toml::to_string_pretty(self)
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        let text =
+            toml::to_string_pretty(self).map_err(|e| std::io::Error::other(e.to_string()))?;
         std::fs::write(&path, text)?;
         Ok(path)
     }

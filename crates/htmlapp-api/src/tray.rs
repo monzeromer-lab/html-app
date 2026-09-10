@@ -62,7 +62,10 @@ impl ksni::Tray for HtmlAppTray {
     }
 
     fn title(&self) -> String {
-        self.spec.title.clone().unwrap_or_else(|| self.app_id.clone())
+        self.spec
+            .title
+            .clone()
+            .unwrap_or_else(|| self.app_id.clone())
     }
 
     fn icon_name(&self) -> String {
@@ -88,8 +91,10 @@ impl ksni::Tray for HtmlAppTray {
     }
 
     fn secondary_activate(&mut self, x: i32, y: i32) {
-        self.events
-            .emit("tray:activate", json!({ "x": x, "y": y, "secondary": true }));
+        self.events.emit(
+            "tray:activate",
+            json!({ "x": x, "y": y, "secondary": true }),
+        );
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
@@ -172,7 +177,11 @@ impl ApiHandler for TrayModule {
         "tray"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]

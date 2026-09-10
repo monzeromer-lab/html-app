@@ -324,7 +324,10 @@ pub(crate) fn describe_build_failure(error: &wry::Error) -> String {
 }
 
 /// Serve one `htmlapp://app/...` request.
-pub(crate) fn serve(resolver: &OriginResolver, request: &Request<Vec<u8>>) -> HttpResponse<Cow<'static, [u8]>> {
+pub(crate) fn serve(
+    resolver: &OriginResolver,
+    request: &Request<Vec<u8>>,
+) -> HttpResponse<Cow<'static, [u8]>> {
     let path = request.uri().path().to_string();
 
     match resolver.resolve(&path) {
@@ -368,10 +371,8 @@ impl WebEngine for WryEngine {
     }
 
     fn set_bounds(&self, bounds: ViewRect) -> Result<()> {
-        self.extent.set((
-            bounds.width.max(1.0) as u16,
-            bounds.height.max(1.0) as u16,
-        ));
+        self.extent
+            .set((bounds.width.max(1.0) as u16, bounds.height.max(1.0) as u16));
         self.webview
             .set_bounds(to_wry_rect(bounds))
             .map_err(|e| EngineError::Script(e.to_string()))

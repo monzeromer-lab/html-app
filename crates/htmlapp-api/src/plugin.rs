@@ -21,9 +21,7 @@ use serde_json::Value;
 use crate::context::Ctx;
 
 #[cfg(feature = "plugin")]
-use {
-    crate::params::decode, serde::Deserialize, serde_json::json, std::sync::atomic::Ordering,
-};
+use {crate::params::decode, serde::Deserialize, serde_json::json, std::sync::atomic::Ordering};
 
 /// Bounds on what a plugin may consume, so a runaway module cannot take the document with it.
 #[cfg(feature = "plugin")]
@@ -183,7 +181,11 @@ impl ApiHandler for PluginModule {
     }
 
     #[cfg(feature = "plugin")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "load" => {
@@ -211,20 +213,25 @@ impl ApiHandler for PluginModule {
                     store.set_fuel(FUEL_PER_CALL).map_err(internal)?;
 
                     // No imports: a plugin gets no ambient authority whatsoever.
-                    let instance = wasmtime::Instance::new(&mut store, &module, &[]).map_err(|e| {
-                        RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed,
-                            format!(
-                                "could not instantiate the module: {e}. Plugins are given no \
+                    let instance =
+                        wasmtime::Instance::new(&mut store, &module, &[]).map_err(|e| {
+                            RpcError::new(
+                                htmlapp_bridge::ErrorCode::OperationFailed,
+                                format!(
+                                    "could not instantiate the module: {e}. Plugins are given no \
                                  imports, so a module needing WASI will not load."
-                            ),
-                        )
-                    })?;
+                                ),
+                            )
+                        })?;
 
                     let handle = self.next.fetch_add(1, Ordering::SeqCst);
                     self.loaded.lock().insert(
                         handle,
-                        LoadedPlugin { store, instance, path: params.path },
+                        LoadedPlugin {
+                            store,
+                            instance,
+                            path: params.path,
+                        },
                     );
                     Ok(json!(handle))
                 }
@@ -304,7 +311,11 @@ impl ApiHandler for PluginModule {
     }
 
     #[cfg(not(feature = "plugin"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async {
             Err(RpcError::unsupported(
                 "this build was compiled without the `plugin` feature",

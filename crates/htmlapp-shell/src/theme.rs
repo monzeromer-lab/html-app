@@ -29,7 +29,11 @@ impl Appearance {
         let gtk_dark = std::env::var("GTK_THEME")
             .map(|t| t.to_ascii_lowercase().contains("dark"))
             .unwrap_or(false);
-        if gtk_dark { Appearance::Dark } else { Appearance::Light }
+        if gtk_dark {
+            Appearance::Dark
+        } else {
+            Appearance::Light
+        }
     }
 }
 

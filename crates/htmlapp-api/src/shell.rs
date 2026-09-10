@@ -33,7 +33,11 @@ impl ApiHandler for ShellModule {
         "shell"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "open" => {
@@ -55,9 +59,9 @@ impl ApiHandler for ShellModule {
                         self.ctx.check_read(&params.target)?;
                     }
                     #[cfg(feature = "tier4")]
-                    open::that_detached(&params.target)
-                        .map_err(|e| RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                    open::that_detached(&params.target).map_err(|e| {
+                        RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                    })?;
                     Ok(Value::Null)
                 }
                 "trash" => {
@@ -65,8 +69,9 @@ impl ApiHandler for ShellModule {
                     // Trashing removes the file from where it was, so it needs write, not read.
                     let path = self.ctx.check_write(&params.path)?;
                     #[cfg(feature = "tier4")]
-                    trash::delete(&path).map_err(|e| RpcError::new(
-                        htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                    trash::delete(&path).map_err(|e| {
+                        RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                    })?;
                     let _ = &path;
                     Ok(Value::Null)
                 }
@@ -78,10 +83,13 @@ impl ApiHandler for ShellModule {
                         let target = if path.is_dir() {
                             path.clone()
                         } else {
-                            path.parent().map(std::path::Path::to_path_buf).unwrap_or(path.clone())
+                            path.parent()
+                                .map(std::path::Path::to_path_buf)
+                                .unwrap_or(path.clone())
                         };
-                        open::that_detached(&target).map_err(|e| RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                        open::that_detached(&target).map_err(|e| {
+                            RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                        })?;
                     }
                     let _ = &path;
                     Ok(Value::Null)

@@ -61,7 +61,11 @@ impl ApiHandler for ClipboardModule {
     }
 
     #[cfg(feature = "tier3")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "readText" => {
@@ -86,8 +90,9 @@ impl ApiHandler for ClipboardModule {
                     let params: HtmlParams = decode("clipboard.writeHtml", params)?;
                     self.open()?
                         .set_html(params.html, params.text)
-                        .map_err(|e| RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                        .map_err(|e| {
+                            RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                        })?;
                     Ok(Value::Null)
                 }
                 "readImage" => {
@@ -113,8 +118,9 @@ impl ApiHandler for ClipboardModule {
                             height,
                             bytes: std::borrow::Cow::Owned(bytes),
                         })
-                        .map_err(|e| RpcError::new(
-                            htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                        .map_err(|e| {
+                            RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                        })?;
                     Ok(Value::Null)
                 }
                 "readFiles" => {
@@ -148,7 +154,11 @@ impl ApiHandler for ClipboardModule {
     }
 
     #[cfg(not(feature = "tier3"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async { Err(RpcError::unsupported("this build has no clipboard support")) })
     }
 }
@@ -158,8 +168,7 @@ impl ApiHandler for ClipboardModule {
 fn encode_png(image: &arboard::ImageData<'_>) -> Result<Vec<u8>, RpcError> {
     let mut out = Vec::new();
     {
-        let mut encoder =
-            png::Encoder::new(&mut out, image.width as u32, image.height as u32);
+        let mut encoder = png::Encoder::new(&mut out, image.width as u32, image.height as u32);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder

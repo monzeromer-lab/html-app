@@ -116,7 +116,11 @@ impl Render for PermissionsManager {
                         .gap_1()
                         .child(
                             div()
-                                .text_color(if record.granted { theme.text } else { theme.text_muted })
+                                .text_color(if record.granted {
+                                    theme.text
+                                } else {
+                                    theme.text_muted
+                                })
                                 .child(SharedString::from(
                                     record.name.clone().unwrap_or_else(|| "(unnamed)".into()),
                                 )),
@@ -148,7 +152,11 @@ impl Render for PermissionsManager {
                 .child(
                     div()
                         .text_size(rems(0.75))
-                        .text_color(if record.granted { theme.warning } else { theme.text_muted })
+                        .text_color(if record.granted {
+                            theme.warning
+                        } else {
+                            theme.text_muted
+                        })
                         .child(SharedString::from(if !record.granted {
                             "refused".to_string()
                         } else if modules.is_empty() {
@@ -178,23 +186,24 @@ impl Render for PermissionsManager {
                 );
             }
 
-            row = row.child(
-                div()
-                    .id(("revoke", index))
-                    .px_3()
-                    .py_1()
-                    .rounded(px(6.0))
-                    .border_1()
-                    .border_color(theme.danger)
-                    .text_size(rems(0.75))
-                    .text_color(theme.danger)
-                    .hover(|s| s.bg(theme.danger).text_color(theme.accent_text))
-                    .cursor_pointer()
-                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                        this.revoke(hash.clone(), cx)
-                    }))
-                    .child("Revoke"),
-            );
+            row =
+                row.child(
+                    div()
+                        .id(("revoke", index))
+                        .px_3()
+                        .py_1()
+                        .rounded(px(6.0))
+                        .border_1()
+                        .border_color(theme.danger)
+                        .text_size(rems(0.75))
+                        .text_color(theme.danger)
+                        .hover(|s| s.bg(theme.danger).text_color(theme.accent_text))
+                        .cursor_pointer()
+                        .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                            this.revoke(hash.clone(), cx)
+                        }))
+                        .child("Revoke"),
+                );
 
             list = list.child(row);
         }
@@ -257,9 +266,7 @@ impl Render for PermissionsManager {
                         div()
                             .text_size(rems(0.75))
                             .text_color(theme.text_muted)
-                            .child(SharedString::from(
-                                self.status.clone().unwrap_or_default(),
-                            )),
+                            .child(SharedString::from(self.status.clone().unwrap_or_default())),
                     )
                     .child(if has_records {
                         div()
@@ -272,7 +279,9 @@ impl Render for PermissionsManager {
                             .text_color(theme.danger)
                             .cursor_pointer()
                             .hover(|s| s.bg(theme.danger).text_color(theme.accent_text))
-                            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| this.revoke_all(cx)))
+                            .on_click(
+                                cx.listener(|this, _: &ClickEvent, _, cx| this.revoke_all(cx)),
+                            )
                             .child("Revoke everything")
                     } else {
                         div().id("revoke-all-disabled")

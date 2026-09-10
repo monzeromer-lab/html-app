@@ -21,7 +21,10 @@ pub struct PortalModule {
     /// Live inhibitor cookies, so `uninhibit` has something to release.
     #[cfg(feature = "tier2")]
     inhibitors: parking_lot::Mutex<
-        std::collections::HashMap<u64, ashpd::desktop::Session<'static, ashpd::desktop::inhibit::InhibitProxy<'static>>>,
+        std::collections::HashMap<
+            u64,
+            ashpd::desktop::Session<'static, ashpd::desktop::inhibit::InhibitProxy<'static>>,
+        >,
     >,
     next: std::sync::atomic::AtomicU64,
 }
@@ -138,7 +141,9 @@ impl PortalModule {
         use ashpd::desktop::Color;
 
         self.check(PortalCapability::Screenshot)?;
-        let color = Color::pick().send().await
+        let color = Color::pick()
+            .send()
+            .await
             .and_then(|request| request.response())
             .map_err(portal_error)?;
 
@@ -186,18 +191,13 @@ impl PortalModule {
             .fold(Default::default(), |acc, flag| acc | flag);
 
         let proxy = InhibitProxy::new().await.map_err(portal_error)?;
-        let session = proxy
-            .create_monitor(None)
-            .await
-            .map_err(portal_error)?;
+        let session = proxy.create_monitor(None).await.map_err(portal_error)?;
         proxy
             .inhibit(None, flags, &params.reason)
             .await
             .map_err(portal_error)?;
 
-        let handle = self
-            .next
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let handle = self.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.inhibitors.lock().insert(handle, session);
         Ok(json!(handle))
     }
@@ -261,7 +261,10 @@ impl PortalModule {
             .await
             .map_err(portal_error)?;
 
-        let mut updates = proxy.receive_location_updated().await.map_err(portal_error)?;
+        let mut updates = proxy
+            .receive_location_updated()
+            .await
+            .map_err(portal_error)?;
         proxy.start(&session, None).await.map_err(portal_error)?;
 
         // One fix, then done. A page that wants continuous tracking should say so explicitly
@@ -294,7 +297,11 @@ impl ApiHandler for PortalModule {
         "portal"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]

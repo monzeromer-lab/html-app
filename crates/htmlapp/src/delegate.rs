@@ -46,8 +46,12 @@ impl CliDelegate {
             .stderr(std::process::Stdio::inherit())
             .spawn()
         {
-            Ok(child) => tracing::info!(pid = child.id(), path = %path.display(), "opened document"),
-            Err(error) => tracing::error!(%error, path = %path.display(), "could not open document"),
+            Ok(child) => {
+                tracing::info!(pid = child.id(), path = %path.display(), "opened document")
+            }
+            Err(error) => {
+                tracing::error!(%error, path = %path.display(), "could not open document")
+            }
         }
     }
 }
@@ -100,7 +104,9 @@ impl LauncherDelegate for CliDelegate {
     }
 
     fn manage_permissions(&self) {
-        let Ok(exe) = std::env::current_exe() else { return };
+        let Ok(exe) = std::env::current_exe() else {
+            return;
+        };
         // A separate process keeps the manager's window independent of the launcher's.
         let _ = std::process::Command::new(exe)
             .arg("--permissions-ui")
@@ -143,7 +149,9 @@ impl LauncherDelegate for CliDelegate {
         let target: PathBuf = if path.is_dir() {
             path.to_path_buf()
         } else {
-            path.parent().map(Path::to_path_buf).unwrap_or_else(|| path.to_path_buf())
+            path.parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| path.to_path_buf())
         };
         if let Err(error) = open::that_detached(&target) {
             tracing::warn!(%error, "could not open the file manager");

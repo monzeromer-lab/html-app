@@ -56,10 +56,16 @@ fn keyboard_interactivity_uses_the_protocol_numbering() {
 #[test]
 fn anchors_combine_into_a_bitmask() {
     assert_eq!(config(r#"{"window":{"anchor":[]}}"#).anchor, 0);
-    assert_eq!(config(r#"{"window":{"anchor":["bottom"]}}"#).anchor, ANCHOR_BOTTOM);
+    assert_eq!(
+        config(r#"{"window":{"anchor":["bottom"]}}"#).anchor,
+        ANCHOR_BOTTOM
+    );
 
     let all = config(r#"{"window":{"anchor":["top","bottom","left","right"]}}"#);
-    assert_eq!(all.anchor, ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT);
+    assert_eq!(
+        all.anchor,
+        ANCHOR_TOP | ANCHOR_BOTTOM | ANCHOR_LEFT | ANCHOR_RIGHT
+    );
     assert!(all.spans_horizontally() && all.spans_vertically());
 }
 
@@ -84,17 +90,14 @@ fn exclusive_zone_without_an_anchor_is_flagged() {
 
 #[test]
 fn fullscreen_surface_reserving_space_is_flagged() {
-    let layer = config(
-        r#"{"window":{"anchor":["top","bottom","left","right"],"exclusive_zone":40}}"#,
-    );
+    let layer =
+        config(r#"{"window":{"anchor":["top","bottom","left","right"],"exclusive_zone":40}}"#);
     assert!(!layer.warnings().is_empty());
 }
 
 #[test]
 fn exclusive_keyboard_on_a_low_layer_is_flagged() {
-    let layer = config(
-        r#"{"window":{"layer":"background","keyboard_interactivity":"exclusive"}}"#,
-    );
+    let layer = config(r#"{"window":{"layer":"background","keyboard_interactivity":"exclusive"}}"#);
     assert!(
         layer.warnings().iter().any(|w| w.contains("focus")),
         "{:?}",

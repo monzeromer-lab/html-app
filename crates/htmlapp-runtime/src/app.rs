@@ -35,7 +35,10 @@ const PUMP_INTERVAL: std::time::Duration = std::time::Duration::from_millis(8);
 pub fn diagnostics(engine: Option<&dyn WebEngine>) -> Diagnostics {
     let capabilities = htmlapp_wayland::Capabilities::detect();
     let session = if capabilities.layer_shell {
-        format!("{} (layer-shell available)", htmlapp_api::os::session_type())
+        format!(
+            "{} (layer-shell available)",
+            htmlapp_api::os::session_type()
+        )
     } else {
         htmlapp_api::os::session_type().to_string()
     };
@@ -130,8 +133,8 @@ pub fn run_permissions_manager() -> Result<()> {
                 ..Default::default()
             },
             |window, cx| {
-                let manager =
-                    cx.new(|cx| htmlapp_shell::PermissionsManager::new(Arc::new(RevealDelegate), cx));
+                let manager = cx
+                    .new(|cx| htmlapp_shell::PermissionsManager::new(Arc::new(RevealDelegate), cx));
                 window.focus(&manager.focus_handle(cx));
                 manager
             },
@@ -324,7 +327,10 @@ impl DocumentRoot {
         // Escape always dismisses, and always answers whatever was waiting.
         if key == "escape" {
             let outcome = match &overlay {
-                Overlay::Dialog { kind: DialogKind::Confirm, .. } => serde_json::Value::Bool(false),
+                Overlay::Dialog {
+                    kind: DialogKind::Confirm,
+                    ..
+                } => serde_json::Value::Bool(false),
                 _ => serde_json::Value::Null,
             };
             self.state.close_overlay(outcome);
@@ -344,7 +350,8 @@ impl DocumentRoot {
                             && let Some(id) = command.get("id").and_then(|v| v.as_str())
                         {
                             self.state.close_overlay(serde_json::Value::Null);
-                            self.events.emit("palette:run", serde_json::json!({ "id": id }));
+                            self.events
+                                .emit("palette:run", serde_json::json!({ "id": id }));
                             cx.notify();
                             return;
                         }
@@ -369,7 +376,12 @@ impl DocumentRoot {
                 cx.notify();
             }
 
-            Overlay::Menu { items, x, y, selected } => {
+            Overlay::Menu {
+                items,
+                x,
+                y,
+                selected,
+            } => {
                 let mut selected = selected;
                 match key {
                     "enter" => {
@@ -392,12 +404,21 @@ impl DocumentRoot {
                     }
                     _ => {}
                 }
-                *self.state.overlay_state.lock() =
-                    Some(Overlay::Menu { items, x, y, selected });
+                *self.state.overlay_state.lock() = Some(Overlay::Menu {
+                    items,
+                    x,
+                    y,
+                    selected,
+                });
                 cx.notify();
             }
 
-            Overlay::Dialog { kind, title, body, input } => {
+            Overlay::Dialog {
+                kind,
+                title,
+                body,
+                input,
+            } => {
                 let mut input = input;
                 match (kind, key) {
                     (DialogKind::Message, "enter") => {
@@ -412,15 +433,23 @@ impl DocumentRoot {
                     }
                     (DialogKind::Prompt, "backspace") => {
                         input.pop();
-                        *self.state.overlay_state.lock() =
-                            Some(Overlay::Dialog { kind, title, body, input });
+                        *self.state.overlay_state.lock() = Some(Overlay::Dialog {
+                            kind,
+                            title,
+                            body,
+                            input,
+                        });
                     }
                     (DialogKind::Prompt, other) => {
                         if other.chars().count() == 1 && !event.keystroke.modifiers.control {
                             input.push_str(other);
                         }
-                        *self.state.overlay_state.lock() =
-                            Some(Overlay::Dialog { kind, title, body, input });
+                        *self.state.overlay_state.lock() = Some(Overlay::Dialog {
+                            kind,
+                            title,
+                            body,
+                            input,
+                        });
                     }
                     _ => {}
                 }
@@ -449,9 +478,10 @@ impl DocumentRoot {
         // An overlay covers everything, so the page is occluded in full for as long as one is up.
         {
             let mut overlay = self.state.overlay.lock();
-            *overlay = self.state.has_overlay().then(|| {
-                htmlapp_engine::ViewRect::new(0.0, 0.0, self.extent.0, self.extent.1)
-            });
+            *overlay = self
+                .state
+                .has_overlay()
+                .then(|| htmlapp_engine::ViewRect::new(0.0, 0.0, self.extent.0, self.extent.1));
         }
 
         for command in self.state.drain_commands() {
@@ -561,14 +591,22 @@ impl DocumentRoot {
             .text_size(rems(0.8125));
 
         for (index, item) in items.iter().enumerate() {
-            let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let label = item
+                .get("label")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             if label.is_empty() {
                 continue;
             }
 
             // A top-level entry with a submenu opens it as a popup; one without is a command.
             let submenu = item.get("submenu").and_then(|v| v.as_array()).cloned();
-            let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let id = item
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
 
             bar = bar.child(
                 div()
@@ -627,8 +665,16 @@ impl DocumentRoot {
                 let mut list = div().flex().flex_col().max_h(px(360.0)).overflow_hidden();
 
                 for (index, command) in matches.iter().enumerate().take(50) {
-                    let id = command.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                    let title = command.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let id = command
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let title = command
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     let subtitle = command
                         .get("subtitle")
                         .and_then(|v| v.as_str())
@@ -645,7 +691,11 @@ impl DocumentRoot {
                             .px_4()
                             .py_2()
                             .cursor_pointer()
-                            .bg(if index == selected { theme.surface_hover } else { theme.surface })
+                            .bg(if index == selected {
+                                theme.surface_hover
+                            } else {
+                                theme.surface
+                            })
                             .hover(|style| style.bg(theme.surface_hover))
                             .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                                 this.state.close_overlay(serde_json::Value::Null);
@@ -653,7 +703,11 @@ impl DocumentRoot {
                                     .emit("palette:run", serde_json::json!({ "id": id }));
                                 cx.notify();
                             }))
-                            .child(div().text_color(theme.text).child(SharedString::from(title)))
+                            .child(
+                                div()
+                                    .text_color(theme.text)
+                                    .child(SharedString::from(title)),
+                            )
                             .child(
                                 div()
                                     .text_size(rems(0.75))
@@ -679,7 +733,11 @@ impl DocumentRoot {
                                     .py_3()
                                     .border_b_1()
                                     .border_color(theme.border)
-                                    .text_color(if query.is_empty() { theme.text_muted } else { theme.text })
+                                    .text_color(if query.is_empty() {
+                                        theme.text_muted
+                                    } else {
+                                        theme.text
+                                    })
                                     .child(SharedString::from(if query.is_empty() {
                                         "Type to search…".to_string()
                                     } else {
@@ -691,7 +749,12 @@ impl DocumentRoot {
                     .into_any_element()
             }
 
-            Overlay::Menu { items, x, y, selected } => {
+            Overlay::Menu {
+                items,
+                x,
+                y,
+                selected,
+            } => {
                 let mut list = div()
                     .absolute()
                     .left(px(x))
@@ -705,9 +768,7 @@ impl DocumentRoot {
 
                 for (index, entry) in items.iter().enumerate() {
                     if entry.separator {
-                        list = list.child(
-                            div().my_1().h(px(1.0)).mx_2().bg(theme.border),
-                        );
+                        list = list.child(div().my_1().h(px(1.0)).mx_2().bg(theme.border));
                         continue;
                     }
 
@@ -725,8 +786,16 @@ impl DocumentRoot {
                             .pl(px(indent))
                             .pr_4()
                             .py_1()
-                            .text_color(if enabled { theme.text } else { theme.text_muted })
-                            .bg(if index == selected { theme.surface_hover } else { theme.surface })
+                            .text_color(if enabled {
+                                theme.text
+                            } else {
+                                theme.text_muted
+                            })
+                            .bg(if index == selected {
+                                theme.surface_hover
+                            } else {
+                                theme.surface
+                            })
                             .when_enabled(enabled, theme)
                             .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                                 if enabled {
@@ -736,10 +805,8 @@ impl DocumentRoot {
                                     this.state
                                         .close_overlay(serde_json::Value::String(id.clone()));
                                     if !awaited {
-                                        this.events.emit(
-                                            "menu:select",
-                                            serde_json::json!({ "id": id }),
-                                        );
+                                        this.events
+                                            .emit("menu:select", serde_json::json!({ "id": id }));
                                     }
                                     cx.notify();
                                 }
@@ -767,7 +834,12 @@ impl DocumentRoot {
                     .into_any_element()
             }
 
-            Overlay::Dialog { kind, title, body, input } => {
+            Overlay::Dialog {
+                kind,
+                title,
+                body,
+                input,
+            } => {
                 let mut sheet = div()
                     .w(px(440.0))
                     .flex()
@@ -845,9 +917,7 @@ impl DocumentRoot {
                             let outcome = match kind {
                                 DialogKind::Message => serde_json::Value::Null,
                                 DialogKind::Confirm => serde_json::Value::Bool(true),
-                                DialogKind::Prompt => {
-                                    serde_json::Value::String(confirmed.clone())
-                                }
+                                DialogKind::Prompt => serde_json::Value::String(confirmed.clone()),
                             };
                             this.state.close_overlay(outcome);
                             cx.notify();
@@ -872,7 +942,8 @@ trait MenuItemStyle: Sized {
 impl MenuItemStyle for gpui::Stateful<gpui::Div> {
     fn when_enabled(self, enabled: bool, theme: Theme) -> Self {
         if enabled {
-            self.cursor_pointer().hover(|style| style.bg(theme.surface_hover))
+            self.cursor_pointer()
+                .hover(|style| style.bg(theme.surface_hover))
         } else {
             self
         }
@@ -1022,9 +1093,7 @@ impl DocumentLaunch {
                                 "dnd:enter",
                                 serde_json::json!({ "paths": names(paths), "x": x, "y": y }),
                             ),
-                            D::Over { x, y } => {
-                                ("dnd:over", serde_json::json!({ "x": x, "y": y }))
-                            }
+                            D::Over { x, y } => ("dnd:over", serde_json::json!({ "x": x, "y": y })),
                             D::Drop { paths, x, y } => (
                                 "dnd:drop",
                                 serde_json::json!({ "paths": names(paths), "x": x, "y": y }),
@@ -1078,10 +1147,7 @@ impl DocumentLaunch {
                     host_window_id: None,
                     source,
                     focus: cx.focus_handle(),
-                    extent: (
-                        manifest_window.width as f32,
-                        manifest_window.height as f32,
-                    ),
+                    extent: (manifest_window.width as f32, manifest_window.height as f32),
                 })
             },
         );
@@ -1194,11 +1260,14 @@ pub fn run_document(session: Session, runtime: tokio::runtime::Runtime) -> Resul
                             if answer == ConsentChoice::Allow {
                                 match ConsentStore::load_default() {
                                     Ok(mut store) => {
-                                        if let Err(error) = session.apply_consent(true, &mut store) {
+                                        if let Err(error) = session.apply_consent(true, &mut store)
+                                        {
                                             tracing::error!(%error, "could not record consent");
                                         }
                                     }
-                                    Err(error) => tracing::error!(%error, "could not open the consent store"),
+                                    Err(error) => {
+                                        tracing::error!(%error, "could not open the consent store")
+                                    }
                                 }
                             } else {
                                 // Running once without permissions is not a refusal, so nothing is
@@ -1295,7 +1364,6 @@ pub fn run(session: Session, runtime: tokio::runtime::Runtime) -> Result<i32> {
         )),
     }
 }
-
 
 /// Step to the next selectable menu entry, skipping separators and disabled items.
 fn next_selectable(items: &[MenuEntry], from: usize, step: isize) -> usize {

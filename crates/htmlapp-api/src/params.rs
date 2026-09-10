@@ -13,6 +13,5 @@ pub fn decode<T: DeserializeOwned>(method: &str, params: Value) -> Result<T, Rpc
     } else {
         params
     };
-    serde_json::from_value(params)
-        .map_err(|e| RpcError::invalid_params(format!("{method}: {e}")))
+    serde_json::from_value(params).map_err(|e| RpcError::invalid_params(format!("{method}: {e}")))
 }

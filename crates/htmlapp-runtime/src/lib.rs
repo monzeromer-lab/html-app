@@ -19,6 +19,6 @@ pub mod session;
 pub mod single_instance;
 pub mod transport;
 
-pub use host::{HeadlessHost, HostCommand, HostState, RuntimeHost, ViewState};
 pub use config::Config;
+pub use host::{HeadlessHost, HostCommand, HostState, RuntimeHost, ViewState};
 pub use session::{ConsentOutcome, Session, SessionError, SessionOptions, VERSION};

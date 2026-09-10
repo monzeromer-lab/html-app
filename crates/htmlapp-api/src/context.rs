@@ -205,10 +205,7 @@ impl ApiContext {
     }
 
     /// Check clipboard access in one direction.
-    pub fn check_clipboard(
-        &self,
-        access: htmlapp_caps::ClipboardAccess,
-    ) -> Result<(), RpcError> {
+    pub fn check_clipboard(&self, access: htmlapp_caps::ClipboardAccess) -> Result<(), RpcError> {
         if self.permissions.clipboard.contains(&access) {
             Ok(())
         } else {
@@ -224,10 +221,14 @@ impl ApiContext {
             return Err(RpcError::denied("this document was not granted `dbus`"));
         };
         if bus_is_system && !dbus.system {
-            return Err(RpcError::denied("this document was not granted the system bus"));
+            return Err(RpcError::denied(
+                "this document was not granted the system bus",
+            ));
         }
         if !bus_is_system && !dbus.session {
-            return Err(RpcError::denied("this document was not granted the session bus"));
+            return Err(RpcError::denied(
+                "this document was not granted the session bus",
+            ));
         }
         if dbus.destinations.is_empty() || dbus.destinations.iter().any(|d| d == destination) {
             Ok(())

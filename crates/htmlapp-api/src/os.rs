@@ -41,7 +41,11 @@ pub fn compositor() -> Option<String> {
     std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
         .filter(|s| !s.is_empty())
-        .or_else(|| std::env::var("DESKTOP_SESSION").ok().filter(|s| !s.is_empty()))
+        .or_else(|| {
+            std::env::var("DESKTOP_SESSION")
+                .ok()
+                .filter(|s| !s.is_empty())
+        })
 }
 
 /// Identify the GPU, for the launcher's diagnostics strip (docs/building.md).
@@ -90,7 +94,9 @@ fn distro() -> Option<String> {
 }
 
 fn read_trimmed(path: &str) -> Option<String> {
-    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 impl OsModule {
@@ -178,7 +184,11 @@ impl ApiHandler for OsModule {
         "os"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "info" => Ok(self.info()),
@@ -193,9 +203,15 @@ impl ApiHandler for OsModule {
                     // Environment variables routinely carry tokens and keys, so the ones most
                     // likely to matter are withheld rather than handed over wholesale.
                     const WITHHELD: &[&str] = &[
-                        "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "GITHUB_TOKEN",
-                        "GH_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NPM_TOKEN",
-                        "SSH_AUTH_SOCK", "GPG_AGENT_INFO",
+                        "AWS_SECRET_ACCESS_KEY",
+                        "AWS_SESSION_TOKEN",
+                        "GITHUB_TOKEN",
+                        "GH_TOKEN",
+                        "OPENAI_API_KEY",
+                        "ANTHROPIC_API_KEY",
+                        "NPM_TOKEN",
+                        "SSH_AUTH_SOCK",
+                        "GPG_AGENT_INFO",
                     ];
                     let upper = params.name.to_ascii_uppercase();
                     if WITHHELD.contains(&upper.as_str())

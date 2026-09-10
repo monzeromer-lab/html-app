@@ -41,10 +41,14 @@ enum Endpoint {
         peer: Option<String>,
     },
     /// A listener, with the stream of accepted events waiting to be taken.
-    Server {
-        events: Option<tokio::sync::mpsc::UnboundedReceiver<Value>>,
-        shutdown: Option<tokio::sync::oneshot::Sender<()>>,
-    },
+    Server(Box<ServerEndpoint>),
+}
+
+/// Boxed out of [`Endpoint`]: it is much larger than the other variants, and most endpoints are
+/// connected sockets rather than listeners.
+struct ServerEndpoint {
+    events: Option<tokio::sync::mpsc::UnboundedReceiver<Value>>,
+    shutdown: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 pub struct NetModule {
@@ -53,6 +57,18 @@ pub struct NetModule {
     /// Inbound HTTP requests awaiting a `respond` call.
     pending: Arc<Mutex<HashMap<u64, tokio::sync::oneshot::Sender<HttpResponse>>>>,
     next: AtomicU64,
+}
+
+/// The parts of a running server every connection needs. Passed as one value because eight
+/// positional arguments is a signature nobody can call correctly from memory.
+#[derive(Clone)]
+struct ServerContext {
+    /// `http`, `ws`, or `tcp`.
+    kind: String,
+    events: tokio::sync::mpsc::UnboundedSender<Value>,
+    pending: Arc<Mutex<HashMap<u64, tokio::sync::oneshot::Sender<HttpResponse>>>>,
+    endpoints: Arc<Mutex<HashMap<u64, Endpoint>>>,
+    next: Arc<AtomicU64>,
 }
 
 #[derive(Debug)]
@@ -104,7 +120,9 @@ impl NetModule {
     /// Check an address against one side of the `sockets` grant.
     fn check(&self, direction: &str, address: &str) -> Result<(), RpcError> {
         let Some(sockets) = self.ctx.permissions().sockets.as_ref() else {
-            return Err(RpcError::denied("this document was not granted `net` sockets"));
+            return Err(RpcError::denied(
+                "this document was not granted `net` sockets",
+            ));
         };
         let allowed = match direction {
             "connect" => &sockets.connect,
@@ -181,8 +199,17 @@ impl NetModule {
 
 // --- HTTP ---
 
+/// A parsed HTTP request head.
+struct RequestHead {
+    method: String,
+    path: String,
+    headers: Vec<(String, String)>,
+    /// Offset just past the blank line, where the body starts.
+    body_offset: usize,
+}
+
 /// Parse a request head. Returns `None` while the head is still incomplete.
-fn parse_head(buffer: &[u8]) -> Option<(String, String, Vec<(String, String)>, usize)> {
+fn parse_head(buffer: &[u8]) -> Option<RequestHead> {
     let end = buffer.windows(4).position(|w| w == b"\r\n\r\n")? + 4;
     let head = std::str::from_utf8(&buffer[..end - 4]).ok()?;
 
@@ -198,7 +225,12 @@ fn parse_head(buffer: &[u8]) -> Option<(String, String, Vec<(String, String)>, u
         })
         .collect();
 
-    Some((method, path, headers, end))
+    Some(RequestHead {
+        method,
+        path,
+        headers,
+        body_offset: end,
+    })
 }
 
 fn header<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
@@ -296,7 +328,7 @@ fn decode_frame(buffer: &[u8]) -> Option<(Option<Vec<u8>>, usize)> {
     let consumed = offset + payload_len;
     match opcode {
         0x8 => Some((None, consumed)),
-        0x1 | 0x2 | 0x0 => Some((Some(payload), consumed)),
+        0x0..=0x2 => Some((Some(payload), consumed)),
         _ => Some((Some(Vec::new()), consumed)),
     }
 }
@@ -324,13 +356,16 @@ impl NetModule {
     async fn serve_connection(
         mut socket: tokio::net::TcpStream,
         peer: String,
-        kind: String,
         handle: u64,
-        events: tokio::sync::mpsc::UnboundedSender<Value>,
-        pending: Arc<Mutex<HashMap<u64, tokio::sync::oneshot::Sender<HttpResponse>>>>,
-        endpoints: Arc<Mutex<HashMap<u64, Endpoint>>>,
-        next: Arc<AtomicU64>,
+        server: ServerContext,
     ) {
+        let ServerContext {
+            kind,
+            events,
+            pending,
+            endpoints,
+            next,
+        } = server;
         let _ = events.send(json!({ "kind": "connection", "handle": handle, "peer": peer }));
 
         if kind == "tcp" {
@@ -369,7 +404,13 @@ impl NetModule {
                 break;
             }
 
-            let Some((method, path, headers, head_len)) = parse_head(&buffer) else {
+            let Some(RequestHead {
+                method,
+                path,
+                headers,
+                body_offset: head_len,
+            }) = parse_head(&buffer)
+            else {
                 continue;
             };
 
@@ -390,8 +431,14 @@ impl NetModule {
                     break;
                 }
 
-                Self::pump_websocket(socket, handle, buffer[head_len..].to_vec(), events, endpoints)
-                    .await;
+                Self::pump_websocket(
+                    socket,
+                    handle,
+                    buffer[head_len..].to_vec(),
+                    events,
+                    endpoints,
+                )
+                .await;
                 return;
             }
 
@@ -406,10 +453,9 @@ impl NetModule {
                 }
             }
 
-            let body = String::from_utf8_lossy(
-                &buffer[head_len..(head_len + body_len).min(buffer.len())],
-            )
-            .into_owned();
+            let body =
+                String::from_utf8_lossy(&buffer[head_len..(head_len + body_len).min(buffer.len())])
+                    .into_owned();
 
             let request_id = next.fetch_add(1, Ordering::SeqCst);
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -426,7 +472,8 @@ impl NetModule {
             }));
 
             // A page that never answers must not hold the connection open indefinitely.
-            let response = match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
+            let response = match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await
+            {
                 Ok(Ok(response)) => response,
                 _ => {
                     pending.lock().remove(&request_id);
@@ -523,7 +570,11 @@ impl ApiHandler for NetModule {
         "net"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "connect" => {
@@ -614,9 +665,9 @@ impl ApiHandler for NetModule {
 
                 "close" => {
                     let params: HandleParams = decode("net.close", params)?;
-                    if let Some(Endpoint::Server { shutdown, .. }) =
+                    if let Some(Endpoint::Server(mut server)) =
                         self.endpoints.lock().remove(&params.handle)
-                        && let Some(shutdown) = shutdown
+                        && let Some(shutdown) = server.shutdown.take()
                     {
                         let _ = shutdown.send(());
                     }
@@ -657,12 +708,14 @@ impl ApiHandler for NetModule {
                                     tokio::spawn(NetModule::serve_connection(
                                         socket,
                                         peer.to_string(),
-                                        kind.clone(),
                                         connection,
-                                        events_tx.clone(),
-                                        Arc::clone(&pending),
-                                        Arc::clone(&endpoints),
-                                        Arc::clone(&counter),
+                                        ServerContext {
+                                            kind: kind.clone(),
+                                            events: events_tx.clone(),
+                                            pending: Arc::clone(&pending),
+                                            endpoints: Arc::clone(&endpoints),
+                                            next: Arc::clone(&counter),
+                                        },
                                     ));
                                 }
                             }
@@ -671,25 +724,25 @@ impl ApiHandler for NetModule {
 
                     self.endpoints.lock().insert(
                         handle,
-                        Endpoint::Server {
+                        Endpoint::Server(Box::new(ServerEndpoint {
                             events: Some(events_rx),
                             shutdown: Some(shutdown_tx),
-                        },
+                        })),
                     );
                     Ok(json!(handle))
                 }
 
                 "respond" => {
                     let params: RespondParams = decode("net.respond", params)?;
-                    let sender = self
-                        .pending
-                        .lock()
-                        .remove(&params.request_id)
-                        .ok_or_else(|| {
-                            RpcError::invalid_params(
-                                "no such request, or it has already been answered",
-                            )
-                        })?;
+                    let sender =
+                        self.pending
+                            .lock()
+                            .remove(&params.request_id)
+                            .ok_or_else(|| {
+                                RpcError::invalid_params(
+                                    "no such request, or it has already been answered",
+                                )
+                            })?;
 
                     let _ = sender.send(HttpResponse {
                         status: params.status.unwrap_or(200),
@@ -733,18 +786,15 @@ impl ApiHandler for NetModule {
                     let socket = Arc::clone(socket);
                     let datagrams = stream! {
                         let mut buffer = vec![0u8; 64 * 1024];
-                        loop {
-                            match socket.recv(&mut buffer).await {
-                                Ok(n) => yield Ok(json!(String::from_utf8_lossy(&buffer[..n]))),
-                                Err(_) => break,
-                            }
+                        while let Ok(n) = socket.recv(&mut buffer).await {
+                            yield Ok(json!(String::from_utf8_lossy(&buffer[..n])));
                         }
                     };
                     Ok(Box::pin(datagrams) as ValueStream)
                 }
 
-                ("accept", Endpoint::Server { events, .. }) => {
-                    let mut events = events.take().ok_or_else(|| {
+                ("accept", Endpoint::Server(server)) => {
+                    let mut events = server.events.take().ok_or_else(|| {
                         RpcError::invalid_params("that server is already being accepted from")
                     })?;
                     let accepted = stream! {
@@ -762,7 +812,10 @@ impl ApiHandler for NetModule {
 }
 
 fn operation_failed(error: std::io::Error) -> RpcError {
-    RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, error.to_string())
+    RpcError::new(
+        htmlapp_bridge::ErrorCode::OperationFailed,
+        error.to_string(),
+    )
 }
 
 #[cfg(test)]
@@ -774,17 +827,17 @@ mod tests {
         // Nothing to parse until the blank line arrives.
         assert!(parse_head(b"GET / HTTP/1.1\r\nHost: x").is_none());
 
-        let (method, path, headers, consumed) =
+        let head =
             parse_head(b"POST /api?q=1 HTTP/1.1\r\nHost: x\r\nContent-Length: 4\r\n\r\nbody")
                 .expect("a complete head parses");
 
-        assert_eq!(method, "POST");
-        assert_eq!(path, "/api?q=1");
-        assert_eq!(header(&headers, "content-length"), Some("4"));
+        assert_eq!(head.method, "POST");
+        assert_eq!(head.path, "/api?q=1");
+        assert_eq!(header(&head.headers, "content-length"), Some("4"));
         // Header names are matched case-insensitively, so they are lowercased on the way in.
-        assert_eq!(header(&headers, "host"), Some("x"));
+        assert_eq!(header(&head.headers, "host"), Some("x"));
         // The head ends after the blank line; the body follows at this offset.
-        assert_eq!(consumed, 54);
+        assert_eq!(head.body_offset, 54);
     }
 
     /// The example key and digest from RFC 6455 §1.3.
@@ -848,12 +901,15 @@ mod tests {
         let mut frame = vec![0x81, 127];
         frame.extend_from_slice(&(u64::MAX).to_be_bytes());
         let (payload, _) = decode_frame(&frame).expect("returns rather than allocating");
-        assert!(payload.is_none(), "an oversized frame is treated as a close");
+        assert!(
+            payload.is_none(),
+            "an oversized frame is treated as a close"
+        );
     }
 
     #[test]
     fn long_payloads_use_the_extended_length_forms() {
-        let medium = encode_frame(&vec![b'x'; 200]);
+        let medium = encode_frame(&[b'x'; 200]);
         assert_eq!(medium[1], 126, "126 selects a 16-bit length");
 
         let large = encode_frame(&vec![b'x'; 70_000]);

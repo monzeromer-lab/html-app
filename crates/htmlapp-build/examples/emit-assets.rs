@@ -11,7 +11,10 @@ fn main() -> std::io::Result<()> {
         out.join("htmlapp.desktop"),
         htmlapp_build::desktop::runtime_desktop_entry("htmlapp"),
     )?;
-    std::fs::write(out.join("htmlapp.xml"), htmlapp_build::desktop::mime_package())?;
+    std::fs::write(
+        out.join("htmlapp.xml"),
+        htmlapp_build::desktop::mime_package(),
+    )?;
     std::fs::write(out.join("htmlapp.svg"), htmlapp_build::desktop::ICON_SVG)?;
 
     println!("wrote packaging/htmlapp.{{desktop,xml,svg}}");

@@ -11,7 +11,7 @@ use crate::context::Ctx;
 
 #[cfg(feature = "bluetooth")]
 use {
-    async_stream::try_stream, htmlapp_bridge::dispatch::ValueStream, crate::params::decode,
+    crate::params::decode, async_stream::try_stream, htmlapp_bridge::dispatch::ValueStream,
     serde::Deserialize, serde_json::json,
 };
 
@@ -43,7 +43,9 @@ impl BluetoothModule {
         if self.ctx.permissions().bluetooth {
             Ok(())
         } else {
-            Err(RpcError::denied("this document was not granted `bluetooth`"))
+            Err(RpcError::denied(
+                "this document was not granted `bluetooth`",
+            ))
         }
     }
 }
@@ -69,7 +71,11 @@ impl ApiHandler for BluetoothModule {
     }
 
     #[cfg(feature = "bluetooth")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             self.check()?;
             let session = bluer::Session::new().await.map_err(unavailable)?;
@@ -110,7 +116,11 @@ impl ApiHandler for BluetoothModule {
     }
 
     #[cfg(not(feature = "bluetooth"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async {
             Err(RpcError::unsupported(
                 "this build was compiled without the `bluetooth` feature",

@@ -40,7 +40,11 @@ impl ApiHandler for RuntimeModule {
         "runtime"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 "ready" => {

@@ -1,7 +1,7 @@
 //! Punching holes in the page (docs/architecture.md, G2).
 
-use htmlapp_engine::{ViewRect, WebEngine};
 use htmlapp_engine::occlusion::merge;
+use htmlapp_engine::{ViewRect, WebEngine};
 
 #[test]
 fn merge_drops_rectangles_already_covered() {
@@ -49,16 +49,28 @@ fn occlusion_support_is_reported_honestly() {
         fn render_path(&self) -> htmlapp_engine::RenderPath {
             htmlapp_engine::RenderPath::Shm
         }
-        fn evaluate(&self, _: &str) -> htmlapp_engine::Result<()> { Ok(()) }
-        fn set_bounds(&self, _: ViewRect) -> htmlapp_engine::Result<()> { Ok(()) }
-        fn set_visible(&self, _: bool) -> htmlapp_engine::Result<()> { Ok(()) }
-        fn focus(&self) -> htmlapp_engine::Result<()> { Ok(()) }
-        fn reload(&self) -> htmlapp_engine::Result<()> { Ok(()) }
-        fn backend_name(&self) -> &'static str { "test" }
+        fn evaluate(&self, _: &str) -> htmlapp_engine::Result<()> {
+            Ok(())
+        }
+        fn set_bounds(&self, _: ViewRect) -> htmlapp_engine::Result<()> {
+            Ok(())
+        }
+        fn set_visible(&self, _: bool) -> htmlapp_engine::Result<()> {
+            Ok(())
+        }
+        fn focus(&self) -> htmlapp_engine::Result<()> {
+            Ok(())
+        }
+        fn reload(&self) -> htmlapp_engine::Result<()> {
+            Ok(())
+        }
+        fn backend_name(&self) -> &'static str {
+            "test"
+        }
     }
 
     let engine = Composited;
     assert!(!engine.supports_occlusion());
-    assert_eq!(engine.set_occlusions(&[]).unwrap(), false);
+    assert!(!engine.set_occlusions(&[]).unwrap());
     assert!(engine.render_path().composites());
 }

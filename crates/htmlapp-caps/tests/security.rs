@@ -142,7 +142,14 @@ fn consent_is_pinned_to_content_and_reprompts_on_edit() {
         ConsentDecision::NeedsPrompt { previous: None, .. }
     ));
 
-    store.record("hash-v1", Some(path), Some("Tool"), None, &permissions, true);
+    store.record(
+        "hash-v1",
+        Some(path),
+        Some("Tool"),
+        None,
+        &permissions,
+        true,
+    );
 
     // Same content again: no prompt.
     assert!(matches!(
@@ -155,7 +162,10 @@ fn consent_is_pinned_to_content_and_reprompts_on_edit() {
         serde_json::from_str(r#"{"fs":{"read":["~/logs/**"]},"process":{"exec":["sh"]}}"#).unwrap();
     match store.decide("hash-v2", Some(path), Some(&escalated)) {
         ConsentDecision::NeedsPrompt { previous, diff } => {
-            assert!(previous.is_some(), "the sheet must show what was there before");
+            assert!(
+                previous.is_some(),
+                "the sheet must show what was there before"
+            );
             assert!(diff.is_escalation());
             assert_eq!(diff.added, vec!["process".to_string()]);
         }
@@ -183,10 +193,7 @@ fn stored_record_cannot_widen_a_grant() {
 #[test]
 fn powerless_document_needs_no_consent() {
     let store = ConsentStore::default();
-    assert_eq!(
-        store.decide("h", None, None),
-        ConsentDecision::NotRequired
-    );
+    assert_eq!(store.decide("h", None, None), ConsentDecision::NotRequired);
     assert_eq!(
         store.decide("h", None, Some(&Permissions::default())),
         ConsentDecision::NotRequired
@@ -221,7 +228,14 @@ fn consent_store_round_trips_through_disk() {
     let mut store = ConsentStore::default();
     let permissions: Permissions =
         serde_json::from_str(r#"{"fs":{"read":["~/x/**"]},"notifications":true}"#).unwrap();
-    store.record("abc", Some(Path::new("/t.hta")), Some("T"), None, &permissions, true);
+    store.record(
+        "abc",
+        Some(Path::new("/t.hta")),
+        Some("T"),
+        None,
+        &permissions,
+        true,
+    );
     store.save(&path).unwrap();
 
     let reloaded = ConsentStore::load(&path).unwrap();
@@ -276,5 +290,8 @@ fn diff_reports_narrowing_as_well_as_widening() {
     let diff = PermissionDiff::between(Some(&old), &new);
     assert_eq!(diff.removed, vec!["process".to_string()]);
     assert_eq!(diff.changed, vec!["fs".to_string()], "fs scope widened");
-    assert!(diff.is_escalation(), "a widened fs scope is still an escalation");
+    assert!(
+        diff.is_escalation(),
+        "a widened fs scope is still an escalation"
+    );
 }

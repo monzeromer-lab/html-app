@@ -52,9 +52,9 @@ jobs:
             libwayland-dev libvulkan-dev libssl-dev libgtk-layer-shell-dev pkg-config
       - run: cargo fmt --all --check
       - name: Clippy
-        # Not `-D warnings` yet: there is a backlog of style findings. This keeps new hard errors
-        # out without blocking a release on lint debt.
-        run: cargo clippy --workspace --all-targets
+        # `-D warnings`: the workspace is clean, so anything new is a regression rather than
+        # existing debt to step around.
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         # No display server on the runner. The suite is written to need none — that separation is
         # deliberate, and this is what keeps it honest.

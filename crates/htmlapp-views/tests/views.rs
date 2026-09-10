@@ -42,7 +42,10 @@ fn terminal_does_not_print_colour_escapes() {
 
     let line = &term.visible_text()[0];
     assert_eq!(line, "red plain");
-    assert!(!line.contains('\x1b'), "escape leaked into the text: {line:?}");
+    assert!(
+        !line.contains('\x1b'),
+        "escape leaked into the text: {line:?}"
+    );
     assert!(!line.contains("31m"), "SGR parameters leaked: {line:?}");
 }
 
@@ -62,7 +65,11 @@ fn terminal_resizes_from_a_pixel_rect() {
     term.resize(800.0, 340.0);
 
     let size = term.size();
-    assert!(size.columns > 80 && size.columns < 110, "columns: {}", size.columns);
+    assert!(
+        size.columns > 80 && size.columns < 110,
+        "columns: {}",
+        size.columns
+    );
     assert_eq!(size.screen_lines, 20);
 
     // A zero-sized rect must not produce a zero-sized grid, which would panic the emulator.
@@ -95,15 +102,20 @@ fn table_formats_rows_from_objects_and_arrays() {
         .unwrap();
 
     table
-        .call("append", json!({ "rows": [
-            { "name": "ada", "score": 91 },
-            { "name": "grace", "score": 88 },
-        ]}))
+        .call(
+            "append",
+            json!({ "rows": [
+                { "name": "ada", "score": 91 },
+                { "name": "grace", "score": 88 },
+            ]}),
+        )
         .unwrap();
     assert_eq!(table.row_count(), 2);
 
     // Arrays are positional, which is what a SQL result set naturally produces.
-    table.call("append", json!({ "rows": [["alan", 95]] })).unwrap();
+    table
+        .call("append", json!({ "rows": [["alan", 95]] }))
+        .unwrap();
     assert_eq!(table.row_count(), 3);
 
     assert_eq!(table.call("count", json!({})).unwrap(), json!(3));
@@ -129,10 +141,13 @@ fn table_accepts_streamed_rows() {
 fn table_columns_can_carry_widths() {
     let mut table = TableView::new();
     table
-        .call("setColumns", json!({ "columns": [
-            { "name": "id", "width": 60 },
-            { "name": "message" },
-        ]}))
+        .call(
+            "setColumns",
+            json!({ "columns": [
+                { "name": "id", "width": 60 },
+                { "name": "message" },
+            ]}),
+        )
         .unwrap();
 
     assert_eq!(table.columns()[0].width, Some(60.0));
@@ -142,12 +157,18 @@ fn table_columns_can_carry_widths() {
 #[test]
 fn changing_columns_clears_stale_rows() {
     let mut table = TableView::new();
-    table.call("setColumns", json!({ "columns": ["a"] })).unwrap();
-    table.call("append", json!({ "rows": [{ "a": 1 }] })).unwrap();
+    table
+        .call("setColumns", json!({ "columns": ["a"] }))
+        .unwrap();
+    table
+        .call("append", json!({ "rows": [{ "a": 1 }] }))
+        .unwrap();
     assert_eq!(table.row_count(), 1);
 
     // Rows formatted for the old columns would be meaningless under the new ones.
-    table.call("setColumns", json!({ "columns": ["b", "c"] })).unwrap();
+    table
+        .call("setColumns", json!({ "columns": ["b", "c"] }))
+        .unwrap();
     assert_eq!(table.row_count(), 0);
 }
 

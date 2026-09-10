@@ -51,6 +51,9 @@ pub fn bind_keys(cx: &mut App) {
     ]);
 }
 
+/// A click handler, as stored rather than as taken by a builder.
+type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
 /// What the launcher needs the runtime to do for it.
 ///
 /// The launcher never runs a document itself: the process and instance model requires each document to get its own process,
@@ -127,7 +130,10 @@ pub fn example_directories() -> Vec<PathBuf> {
     }
     // Running from a checkout.
     if let Ok(exe) = std::env::current_exe()
-        && let Some(root) = exe.parent().and_then(|p| p.parent()).and_then(|p| p.parent())
+        && let Some(root) = exe
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
     {
         dirs.push(root.join("examples"));
     }
@@ -171,7 +177,11 @@ pub fn load_examples() -> Vec<Example> {
                     }
                 })
                 .unwrap_or_else(|| "no permissions".to_string());
-            examples.push(Example { name, description, path });
+            examples.push(Example {
+                name,
+                description,
+                path,
+            });
         }
     }
 
@@ -236,7 +246,10 @@ impl Launcher {
     }
 
     fn remove_selected(&mut self, _: &RemoveSelected, _: &mut Window, cx: &mut Context<Self>) {
-        let path = self.live_recents().get(self.selected).map(|e| e.path.clone());
+        let path = self
+            .live_recents()
+            .get(self.selected)
+            .map(|e| e.path.clone());
         if let Some(path) = path {
             self.recents.remove(&path);
             let _ = self.recents.save_default();
@@ -271,7 +284,8 @@ impl Launcher {
     }
 
     fn copy_diagnostics(&mut self, _: &CopyDiagnostics, _: &mut Window, _: &mut Context<Self>) {
-        self.delegate.copy_to_clipboard(&self.diagnostics.as_block());
+        self.delegate
+            .copy_to_clipboard(&self.diagnostics.as_block());
     }
 }
 
@@ -412,14 +426,12 @@ impl Launcher {
                                     .text_color(theme.text)
                                     .child("HTML App"),
                             )
-                            .child(
-                                div()
-                                    .text_color(theme.text_muted)
-                                    .child(SharedString::from(format!(
-                                        "Run a single .hta file as a desktop application · {}",
-                                        self.diagnostics.version
-                                    ))),
-                            ),
+                            .child(div().text_color(theme.text_muted).child(SharedString::from(
+                                format!(
+                                    "Run a single .hta file as a desktop application · {}",
+                                    self.diagnostics.version
+                                ),
+                            ))),
                     ),
             )
             .child(
@@ -502,7 +514,11 @@ impl Launcher {
                     .rounded(px(8.0))
                     .border_1()
                     .border_color(if selected { theme.accent } else { theme.border })
-                    .bg(if selected { theme.surface_hover } else { theme.surface })
+                    .bg(if selected {
+                        theme.surface_hover
+                    } else {
+                        theme.surface
+                    })
                     .hover(|style| style.bg(theme.surface_hover))
                     .cursor_pointer()
                     .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
@@ -523,19 +539,15 @@ impl Launcher {
                             .flex()
                             .flex_col()
                             .gap_1()
-                            .child(
-                                div()
-                                    .text_color(theme.text)
-                                    .child(SharedString::from(
-                                        entry.name.clone().unwrap_or_else(|| {
-                                            entry
-                                                .path
-                                                .file_name()
-                                                .map(|n| n.to_string_lossy().into_owned())
-                                                .unwrap_or_else(|| "Untitled".into())
-                                        }),
-                                    )),
-                            )
+                            .child(div().text_color(theme.text).child(SharedString::from(
+                                entry.name.clone().unwrap_or_else(|| {
+                                    entry
+                                        .path
+                                        .file_name()
+                                        .map(|n| n.to_string_lossy().into_owned())
+                                        .unwrap_or_else(|| "Untitled".into())
+                                }),
+                            )))
                             .child(
                                 div()
                                     .text_size(rems(0.75))
@@ -638,9 +650,9 @@ impl Launcher {
                     .bg(theme.surface)
                     .hover(|style| style.bg(theme.surface_hover))
                     .cursor_pointer()
-                    .on_click(cx.listener(move |_, _: &ClickEvent, _, _| {
-                        delegate.open_document(&path)
-                    }))
+                    .on_click(
+                        cx.listener(move |_, _: &ClickEvent, _, _| delegate.open_document(&path)),
+                    )
                     .child(
                         div()
                             .text_color(theme.text)
@@ -679,10 +691,7 @@ impl Launcher {
         let reveal_delegate = Arc::clone(&self.delegate);
         let revoke_delegate = Arc::clone(&self.delegate);
 
-        let item = |id: &'static str,
-                    label: &'static str,
-                    danger: bool,
-                    handler: Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>| {
+        let item = |id: &'static str, label: &'static str, danger: bool, handler: ClickHandler| {
             div()
                 .id(id)
                 .px_3()
@@ -736,8 +745,7 @@ impl Launcher {
                                 revoke_delegate.revoke_permissions(&revoke_path);
                                 this.context_menu = None;
                                 // The summaries in the list are now stale.
-                                this.consent =
-                                    ConsentStore::load_default().unwrap_or_default();
+                                this.consent = ConsentStore::load_default().unwrap_or_default();
                                 cx.notify();
                             })),
                         ))
@@ -867,7 +875,6 @@ fn secondary_button(
     }
     button
 }
-
 
 /// One of the identity links in the launcher.
 fn link(

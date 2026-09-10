@@ -86,12 +86,13 @@ pub fn arguments(granted: Option<&Permissions>, document: Option<&Path>) -> Vec<
     }
 
     // The runtime's own state, so consent and the per-app store survive.
-    for directory in [dirs::data_dir(), dirs::cache_dir(), dirs::config_dir()] {
-        if let Some(directory) = directory {
-            let directory = directory.join("htmlapp");
-            let _ = std::fs::create_dir_all(&directory);
-            bind(&mut args, "--bind", &directory.to_string_lossy());
-        }
+    for directory in [dirs::data_dir(), dirs::cache_dir(), dirs::config_dir()]
+        .into_iter()
+        .flatten()
+    {
+        let directory = directory.join("htmlapp");
+        let _ = std::fs::create_dir_all(&directory);
+        bind(&mut args, "--bind", &directory.to_string_lossy());
     }
 
     // Exactly what the manifest granted, and nothing more.

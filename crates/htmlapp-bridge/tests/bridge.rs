@@ -35,10 +35,17 @@ impl ApiHandler for FakeFs {
         "fs"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
-                "read" => Ok(json!(format!("contents of {}", params["path"].as_str().unwrap_or("?")))),
+                "read" => Ok(json!(format!(
+                    "contents of {}",
+                    params["path"].as_str().unwrap_or("?")
+                ))),
                 _ => Err(RpcError::not_found(method)),
             }
         })
@@ -67,7 +74,8 @@ fn permissions(json: &str) -> Permissions {
 
 fn dispatcher(granted: Option<Permissions>) -> (Arc<Dispatcher>, Arc<Recorder>) {
     let recorder = Arc::new(Recorder::default());
-    let mut dispatcher = Dispatcher::new(Arc::clone(&recorder) as Arc<dyn Transport>, granted, false);
+    let mut dispatcher =
+        Dispatcher::new(Arc::clone(&recorder) as Arc<dyn Transport>, granted, false);
     dispatcher.register(Arc::new(FakeFs));
     (Arc::new(dispatcher), recorder)
 }
@@ -202,21 +210,39 @@ async fn malformed_messages_do_not_panic() {
     let (dispatcher, recorder) = dispatcher(None);
     dispatcher.handle_raw("{ not json").await;
     dispatcher.handle_raw(r#"{"t":"nonsense"}"#).await;
-    assert_eq!(recorder.messages().len(), 2, "each bad message gets one error");
+    assert_eq!(
+        recorder.messages().len(),
+        2,
+        "each bad message gets one error"
+    );
 }
 
 #[test]
 fn protocol_round_trips_through_json() {
     let messages = [
-        ClientMessage::Invoke { id: 1, method: "fs.read".into(), params: json!({"path":"/a"}) },
-        ClientMessage::StreamStart { id: 2, method: "fs.watch".into(), params: Value::Null },
+        ClientMessage::Invoke {
+            id: 1,
+            method: "fs.read".into(),
+            params: json!({"path":"/a"}),
+        },
+        ClientMessage::StreamStart {
+            id: 2,
+            method: "fs.watch".into(),
+            params: Value::Null,
+        },
         ClientMessage::StreamCancel { id: 2 },
-        ClientMessage::Subscribe { id: 3, event: "os:theme".into() },
+        ClientMessage::Subscribe {
+            id: 3,
+            event: "os:theme".into(),
+        },
         ClientMessage::Unsubscribe { id: 3 },
     ];
     for message in messages {
         let json = serde_json::to_string(&message).unwrap();
-        assert_eq!(serde_json::from_str::<ClientMessage>(&json).unwrap(), message);
+        assert_eq!(
+            serde_json::from_str::<ClientMessage>(&json).unwrap(),
+            message
+        );
     }
 }
 
@@ -233,9 +259,18 @@ fn shim_injects_only_granted_modules() {
         .lines()
         .find(|l| l.contains("var MODULES ="))
         .expect("module table present");
-    assert!(table.contains("\"fs\""), "granted fs must be present: {table}");
-    assert!(table.contains("\"notify\""), "granted notify must be present");
-    assert!(!table.contains("\"process\""), "ungranted process must be absent");
+    assert!(
+        table.contains("\"fs\""),
+        "granted fs must be present: {table}"
+    );
+    assert!(
+        table.contains("\"notify\""),
+        "granted notify must be present"
+    );
+    assert!(
+        !table.contains("\"process\""),
+        "ungranted process must be absent"
+    );
     assert!(!table.contains("\"ffi\""), "ungranted ffi must be absent");
 }
 
@@ -243,8 +278,14 @@ fn shim_injects_only_granted_modules() {
 fn shim_for_powerless_document_has_no_modules() {
     let shim = render_shim(&ShimConfig::for_permissions("0.1.0", None, false));
     let table = shim.lines().find(|l| l.contains("var MODULES =")).unwrap();
-    assert!(table.contains("{}"), "expected an empty module table, got: {table}");
-    assert!(shim.contains("Object.freeze(htmlapp)"), "the bridge transport requires the global be frozen");
+    assert!(
+        table.contains("{}"),
+        "expected an empty module table, got: {table}"
+    );
+    assert!(
+        shim.contains("Object.freeze(htmlapp)"),
+        "the bridge transport requires the global be frozen"
+    );
 }
 
 #[test]
@@ -252,14 +293,23 @@ fn shim_marks_stream_methods_distinctly() {
     let granted = permissions(r#"{"fs":{"read":["~/x/**"]}}"#);
     let shim = render_shim(&ShimConfig::for_permissions("0.1.0", Some(&granted), false));
     let table = shim.lines().find(|l| l.contains("var MODULES =")).unwrap();
-    assert!(table.contains(r#""read":"invoke""#), "fs.read is request/response");
-    assert!(table.contains(r#""watch":"stream""#), "fs.watch is a stream");
+    assert!(
+        table.contains(r#""read":"invoke""#),
+        "fs.read is request/response"
+    );
+    assert!(
+        table.contains(r#""watch":"stream""#),
+        "fs.watch is a stream"
+    );
 }
 
 #[test]
 fn shim_substitutes_every_placeholder() {
     let shim = render_shim(&ShimConfig::for_permissions("1.2.3", None, true));
-    assert!(!shim.contains("__HTMLAPP_"), "a placeholder survived rendering");
+    assert!(
+        !shim.contains("__HTMLAPP_"),
+        "a placeholder survived rendering"
+    );
     assert!(shim.contains(r#""1.2.3""#));
     assert!(shim.contains("var HEADLESS = true"));
 }
@@ -272,7 +322,10 @@ fn dispatch_script_escapes_its_payload() {
     assert!(!script.contains("</script>"), "payload broke out: {script}");
     assert!(!script.contains('<'), "raw < survived escaping: {script}");
     assert!(script.starts_with("window.__htmlapp_dispatch"));
-    assert!(script.contains(r"\u003c"), "< must be unicode-escaped: {script}");
+    assert!(
+        script.contains(r"\u003c"),
+        "< must be unicode-escaped: {script}"
+    );
 
     // The escaping must be lossless: the page still parses the exact payload it was sent.
     let literal = script
@@ -313,6 +366,12 @@ fn typescript_covers_the_whole_catalog() {
     }
     // Every module is optional, because a grant decides whether it exists at runtime.
     assert!(dts.contains("readonly fs?: FsApi"));
-    assert!(dts.contains("HtmlAppStream<WatchEvent>"), "streams are typed as streams");
-    assert!(dts.contains("Promise<FileStat>"), "invokes are typed as promises");
+    assert!(
+        dts.contains("HtmlAppStream<WatchEvent>"),
+        "streams are typed as streams"
+    );
+    assert!(
+        dts.contains("Promise<FileStat>"),
+        "invokes are typed as promises"
+    );
 }

@@ -27,10 +27,14 @@ pub enum CapsError {
     },
 
     /// The threat model: a wildcard origin would defeat the exfiltration mitigation entirely.
-    #[error("`{0}` is not an acceptable net origin: a bare wildcard grants unrestricted network access")]
+    #[error(
+        "`{0}` is not an acceptable net origin: a bare wildcard grants unrestricted network access"
+    )]
     WildcardOrigin(String),
 
-    #[error("`{0}` is not a valid window mode (expected one of: window, layer, lock, tray, headless)")]
+    #[error(
+        "`{0}` is not a valid window mode (expected one of: window, layer, lock, tray, headless)"
+    )]
     UnknownWindowMode(String),
 
     #[error("import `{name}` must declare an integrity hash")]

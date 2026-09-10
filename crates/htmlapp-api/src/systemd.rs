@@ -108,8 +108,7 @@ impl SystemdModule {
             )
             .await
             .map_err(failed)?;
-        let path: zbus::zvariant::OwnedObjectPath =
-            reply.body().deserialize().map_err(internal)?;
+        let path: zbus::zvariant::OwnedObjectPath = reply.body().deserialize().map_err(internal)?;
 
         let read = |property: &'static str| {
             let connection = connection.clone();
@@ -198,7 +197,10 @@ impl SystemdModule {
 
 #[cfg(feature = "tier2")]
 fn failed(error: zbus::Error) -> RpcError {
-    RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, error.to_string())
+    RpcError::new(
+        htmlapp_bridge::ErrorCode::OperationFailed,
+        error.to_string(),
+    )
 }
 
 #[cfg(feature = "tier2")]
@@ -260,7 +262,12 @@ fn journal_stream(params: JournalParams) -> impl futures::Stream<Item = Result<V
 
 /// Reshape a journal record into the `JournalEntry` the TypeScript declares.
 fn entry_from_journal(raw: Map<String, Value>) -> Value {
-    let text = |key: &str| raw.get(key).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let text = |key: &str| {
+        raw.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
 
     // Journal timestamps are microseconds since the epoch, as a string.
     let timestamp = raw
@@ -290,7 +297,11 @@ impl ApiHandler for SystemdModule {
         "systemd"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]

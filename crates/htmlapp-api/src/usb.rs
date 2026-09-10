@@ -19,8 +19,8 @@ use crate::context::Ctx;
 
 #[cfg(feature = "usb")]
 use {
-    crate::params::decode, serde::Deserialize, serde_json::json,
-    std::sync::atomic::Ordering, std::time::Duration,
+    crate::params::decode, serde::Deserialize, serde_json::json, std::sync::atomic::Ordering,
+    std::time::Duration,
 };
 
 #[cfg(feature = "usb")]
@@ -89,7 +89,11 @@ impl ApiHandler for UsbModule {
     }
 
     #[cfg(feature = "usb")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             self.check()?;
             match method {
@@ -123,8 +127,9 @@ impl ApiHandler for UsbModule {
                     })
                     .await
                     .map_err(|e| RpcError::internal(e.to_string()))?
-                    .map_err(|e| RpcError::new(
-                        htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                    .map_err(|e| {
+                        RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                    })?;
                     Ok(json!(devices))
                 }
 
@@ -173,8 +178,7 @@ impl ApiHandler for UsbModule {
                                 .write_bulk(params.endpoint, &bytes, TRANSFER_TIMEOUT)
                                 .map_err(|e| e.to_string())?;
                             Ok::<String, String>(
-                                base64::engine::general_purpose::STANDARD
-                                    .encode(&bytes[..written]),
+                                base64::engine::general_purpose::STANDARD.encode(&bytes[..written]),
                             )
                         } else {
                             let mut buffer = vec![0u8; params.length.unwrap_or(512).min(1 << 20)];
@@ -202,7 +206,11 @@ impl ApiHandler for UsbModule {
     }
 
     #[cfg(not(feature = "usb"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async {
             Err(RpcError::unsupported(
                 "this build was compiled without the `usb` feature",

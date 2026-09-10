@@ -94,9 +94,7 @@ pub fn extract_manifest_json(html: &str) -> Option<String> {
             continue;
         }
 
-        let Some(tag_end_rel) = lower[after_name..].find('>') else {
-            return None;
-        };
+        let tag_end_rel = lower[after_name..].find('>')?;
         let tag_end = after_name + tag_end_rel;
         let attributes = &html[after_name..tag_end];
 
@@ -107,9 +105,7 @@ pub fn extract_manifest_json(html: &str) -> Option<String> {
         }
 
         let body_start = tag_end + 1;
-        let Some(close_rel) = lower[body_start..].find("</script") else {
-            return None;
-        };
+        let close_rel = lower[body_start..].find("</script")?;
         let body_end = body_start + close_rel;
 
         if attribute_equals(attributes, "type", MANIFEST_MIME) {

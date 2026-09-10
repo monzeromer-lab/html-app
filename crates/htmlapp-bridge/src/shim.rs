@@ -76,7 +76,10 @@ pub fn render(config: &ShimConfig) -> String {
         .replace("\"__HTMLAPP_VERSION__\"", &json_string(&config.version))
         .replace("__HTMLAPP_PERMISSIONS__", &config.permissions.to_string())
         .replace("__HTMLAPP_MODULES__", &modules.to_string())
-        .replace("__HTMLAPP_HEADLESS__", if config.headless { "true" } else { "false" })
+        .replace(
+            "__HTMLAPP_HEADLESS__",
+            if config.headless { "true" } else { "false" },
+        )
         .replace(
             "\"__HTMLAPP_FORMAT__\"",
             &json_string(config.format.as_deref().unwrap_or_default()),

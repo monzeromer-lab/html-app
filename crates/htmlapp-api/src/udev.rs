@@ -52,7 +52,11 @@ impl ApiHandler for UdevModule {
     }
 
     #[cfg(feature = "tier2")]
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             if method != "list" {
                 return Err(RpcError::not_found(&format!("udev.{method}")));
@@ -77,7 +81,11 @@ impl ApiHandler for UdevModule {
     }
 
     #[cfg(not(feature = "tier2"))]
-    fn invoke<'a>(&'a self, _method: &'a str, _params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        _method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async { Err(RpcError::unsupported("this build has no udev support")) })
     }
 
@@ -101,10 +109,11 @@ impl ApiHandler for UdevModule {
 
             std::thread::spawn(move || {
                 let build = || -> Result<udev::MonitorSocket, String> {
-                    let mut builder =
-                        udev::MonitorBuilder::new().map_err(|e| e.to_string())?;
+                    let mut builder = udev::MonitorBuilder::new().map_err(|e| e.to_string())?;
                     if let Some(subsystem) = &subsystem {
-                        builder = builder.match_subsystem(subsystem).map_err(|e| e.to_string())?;
+                        builder = builder
+                            .match_subsystem(subsystem)
+                            .map_err(|e| e.to_string())?;
                     }
                     builder.listen().map_err(|e| e.to_string())
                 };

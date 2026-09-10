@@ -120,7 +120,8 @@ impl DbusModule {
 
     async fn call(&self, params: Value) -> Result<Value, RpcError> {
         let params: CallParams = decode("dbus.call", params)?;
-        self.ctx.check_dbus(params.bus.is_system(), &params.destination)?;
+        self.ctx
+            .check_dbus(params.bus.is_system(), &params.destination)?;
 
         let connection = self.connect(params.bus).await?;
         // Arguments are passed as strings: expressing arbitrary D-Bus signatures from JSON needs a
@@ -143,7 +144,9 @@ impl DbusModule {
                 &args,
             )
             .await
-            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+            .map_err(|e| {
+                RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+            })?;
 
         let body = reply.body();
         Ok(json!(format!("{:?}", body.signature())))
@@ -151,7 +154,8 @@ impl DbusModule {
 
     async fn introspect(&self, params: Value) -> Result<Value, RpcError> {
         let params: IntrospectParams = decode("dbus.introspect", params)?;
-        self.ctx.check_dbus(params.bus.is_system(), &params.destination)?;
+        self.ctx
+            .check_dbus(params.bus.is_system(), &params.destination)?;
 
         let connection = self.connect(params.bus).await?;
         let reply = connection
@@ -163,7 +167,9 @@ impl DbusModule {
                 &(),
             )
             .await
-            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+            .map_err(|e| {
+                RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+            })?;
 
         let xml: String = reply
             .body()
@@ -180,7 +186,8 @@ impl DbusModule {
     /// system service is not a failure that surfaces gracefully.
     async fn set_property(&self, params: Value) -> Result<Value, RpcError> {
         let params: SetPropertyParams = decode("dbus.set", params)?;
-        self.ctx.check_dbus(params.bus.is_system(), &params.destination)?;
+        self.ctx
+            .check_dbus(params.bus.is_system(), &params.destination)?;
 
         let value: zbus::zvariant::Value<'_> = match &params.value {
             Value::Bool(b) => (*b).into(),
@@ -202,14 +209,12 @@ impl DbusModule {
                 params.path.as_str(),
                 Some("org.freedesktop.DBus.Properties"),
                 "Set",
-                &(
-                    params.interface.as_str(),
-                    params.property.as_str(),
-                    zbus::zvariant::Value::from(value),
-                ),
+                &(params.interface.as_str(), params.property.as_str(), value),
             )
             .await
-            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+            .map_err(|e| {
+                RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+            })?;
         Ok(Value::Null)
     }
 
@@ -226,7 +231,11 @@ impl DbusModule {
             return Err(RpcError::denied(format!(
                 "`{}` is not in this document's `dbus.own` list ({})",
                 params.name,
-                if dbus.own.is_empty() { "empty".to_string() } else { dbus.own.join(", ") }
+                if dbus.own.is_empty() {
+                    "empty".to_string()
+                } else {
+                    dbus.own.join(", ")
+                }
             )));
         }
 
@@ -248,7 +257,8 @@ impl DbusModule {
 
     async fn get_property(&self, params: Value) -> Result<Value, RpcError> {
         let params: PropertyParams = decode("dbus.get", params)?;
-        self.ctx.check_dbus(params.bus.is_system(), &params.destination)?;
+        self.ctx
+            .check_dbus(params.bus.is_system(), &params.destination)?;
 
         let connection = self.connect(params.bus).await?;
         let reply = connection
@@ -260,7 +270,9 @@ impl DbusModule {
                 &(params.interface.as_str(), params.property.as_str()),
             )
             .await
-            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+            .map_err(|e| {
+                RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+            })?;
 
         let value: zbus::zvariant::OwnedValue = reply
             .body()
@@ -301,7 +313,13 @@ fn variant_to_json(value: &zbus::zvariant::Value<'_>) -> Value {
             Value::Object(object)
         }
         V::Structure(fields) => {
-            json!(fields.fields().iter().map(variant_to_json).collect::<Vec<_>>())
+            json!(
+                fields
+                    .fields()
+                    .iter()
+                    .map(variant_to_json)
+                    .collect::<Vec<_>>()
+            )
         }
         other => json!(format!("{other:?}")),
     }
@@ -312,7 +330,11 @@ impl ApiHandler for DbusModule {
         "dbus"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]
@@ -354,18 +376,26 @@ impl ApiHandler for DbusModule {
             let connection = self.connect(params.bus).await?;
             let mut rule = zbus::MatchRule::builder().msg_type(zbus::message::Type::Signal);
             if let Some(path) = &params.path {
-                rule = rule.path(path.as_str()).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+                rule = rule
+                    .path(path.as_str())
+                    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
             }
             if let Some(interface) = &params.interface {
-                rule = rule.interface(interface.as_str()).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+                rule = rule
+                    .interface(interface.as_str())
+                    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
             }
             if let Some(member) = &params.member {
-                rule = rule.member(member.as_str()).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+                rule = rule
+                    .member(member.as_str())
+                    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
             }
 
             let mut stream = zbus::MessageStream::for_match_rule(rule.build(), &connection, None)
                 .await
-                .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                .map_err(|e| {
+                    RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string())
+                })?;
 
             let signals = async_stream::stream! {
                 use futures::StreamExt as _;

@@ -221,7 +221,11 @@ impl Permissions {
             };
             out.push(PermissionDescription {
                 module: "process",
-                risk: if process.exec.is_empty() { Risk::Extreme } else { Risk::High },
+                risk: if process.exec.is_empty() {
+                    Risk::Extreme
+                } else {
+                    Risk::High
+                },
                 summary: "Run other programs".into(),
                 detail: if process.pty {
                     format!("{detail} Can also open interactive terminal sessions.")
@@ -476,10 +480,10 @@ pub fn expand_tilde_str(pattern: &str) -> String {
         if let Some(home) = dirs::home_dir() {
             return home.join(rest).to_string_lossy().into_owned();
         }
-    } else if pattern == "~" {
-        if let Some(home) = dirs::home_dir() {
-            return home.to_string_lossy().into_owned();
-        }
+    } else if pattern == "~"
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.to_string_lossy().into_owned();
     }
     pattern.to_string()
 }
@@ -520,13 +524,18 @@ impl PathScope {
             glob: kept.join(", "),
             source,
         })?;
-        Ok(Self { globs, patterns: kept })
+        Ok(Self {
+            globs,
+            patterns: kept,
+        })
     }
 
     /// An empty scope matches nothing. This is the deny-by-default case.
     pub fn empty() -> Self {
         Self {
-            globs: GlobSetBuilder::new().build().expect("empty globset is valid"),
+            globs: GlobSetBuilder::new()
+                .build()
+                .expect("empty globset is valid"),
             patterns: Vec::new(),
         }
     }

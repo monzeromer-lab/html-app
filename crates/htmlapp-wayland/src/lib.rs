@@ -23,8 +23,8 @@
 
 use htmlapp_caps::{Anchor, KeyboardInteractivity, Layer, WindowSpec};
 use serde::{Deserialize, Serialize};
-use wayland_client::protocol::{wl_output, wl_registry};
 use wayland_client::globals::GlobalListContents;
+use wayland_client::protocol::{wl_output, wl_registry};
 use wayland_client::{Connection, Dispatch, QueueHandle, delegate_noop, globals};
 
 // --- anchor bitmask, as defined by zwlr_layer_surface_v1 ---
@@ -201,9 +201,12 @@ pub fn outputs() -> Vec<OutputInfo> {
         if global.interface == "wl_output" {
             // Version 2 is enough for geometry, mode, and scale, and is supported everywhere.
             let version = global.version.min(2);
-            let _ = globals
-                .registry()
-                .bind::<wl_output::WlOutput, _, _>(global.name, version, &handle, global.name);
+            let _ = globals.registry().bind::<wl_output::WlOutput, _, _>(
+                global.name,
+                version,
+                &handle,
+                global.name,
+            );
         }
     }
 

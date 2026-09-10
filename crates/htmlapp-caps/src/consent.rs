@@ -163,12 +163,10 @@ impl ConsentStore {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         match std::fs::read_to_string(path) {
-            Ok(text) => {
-                serde_json::from_str(&text).map_err(|e| CapsError::CorruptConsentStore {
-                    path: path.to_path_buf(),
-                    reason: e.to_string(),
-                })
-            }
+            Ok(text) => serde_json::from_str(&text).map_err(|e| CapsError::CorruptConsentStore {
+                path: path.to_path_buf(),
+                reason: e.to_string(),
+            }),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self {
                 version: store_version(),
                 records: Vec::new(),

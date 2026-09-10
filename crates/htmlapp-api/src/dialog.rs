@@ -58,11 +58,11 @@ impl DialogModule {
     /// Turn portal URIs into paths and authorise each one.
     fn accept(&self, uris: Vec<String>) -> Vec<String> {
         uris.into_iter()
-            .filter_map(|uri| {
+            .map(|uri| {
                 let path = uri.strip_prefix("file://").unwrap_or(&uri).to_string();
                 let decoded = percent_decode(&path);
                 self.ctx.grant_from_portal(&decoded);
-                Some(decoded)
+                decoded
             })
             .collect()
     }
@@ -73,15 +73,15 @@ fn percent_decode(input: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Some(byte) = std::str::from_utf8(&bytes[i + 1..i + 3])
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Some(byte) = std::str::from_utf8(&bytes[i + 1..i + 3])
                 .ok()
                 .and_then(|h| u8::from_str_radix(h, 16).ok())
-            {
-                out.push(byte);
-                i += 3;
-                continue;
-            }
+        {
+            out.push(byte);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;
@@ -120,7 +120,8 @@ impl DialogModule {
         use ashpd::desktop::file_chooser::{FileFilter, SelectedFiles};
 
         let params: SaveParams = decode("dialog.save", params)?;
-        let mut request = SelectedFiles::save_file().title(params.title.as_deref().unwrap_or("Save"));
+        let mut request =
+            SelectedFiles::save_file().title(params.title.as_deref().unwrap_or("Save"));
         if let Some(name) = &params.default_name {
             request = request.current_name(name.as_str());
         }
@@ -178,7 +179,11 @@ impl ApiHandler for DialogModule {
         "dialog"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]
@@ -189,9 +194,7 @@ impl ApiHandler for DialogModule {
                 "pickFolder" => self.pick_folder(params).await,
 
                 // Painted by the host so they are modal to this document's window.
-                "message" | "confirm" | "prompt" => {
-                    self.host.call("dialog", method, params).await
-                }
+                "message" | "confirm" | "prompt" => self.host.call("dialog", method, params).await,
 
                 #[cfg(not(feature = "tier2"))]
                 "open" | "save" | "pickFolder" => {

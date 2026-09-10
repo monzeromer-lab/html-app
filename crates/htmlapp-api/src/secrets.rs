@@ -133,7 +133,9 @@ mod dbus_impl {
         pub(super) async fn get(&self, params: Value) -> Result<Value, RpcError> {
             let params: KeyParams = decode("secrets.get", params)?;
             let connection = self.connect().await?;
-            let items = self.search(&connection, &self.attributes(&params.key)).await?;
+            let items = self
+                .search(&connection, &self.attributes(&params.key))
+                .await?;
 
             let Some(item) = items.first() else {
                 return Ok(Value::Null);
@@ -198,9 +200,18 @@ mod dbus_impl {
         pub(super) async fn delete(&self, params: Value) -> Result<Value, RpcError> {
             let params: KeyParams = decode("secrets.delete", params)?;
             let connection = self.connect().await?;
-            for item in self.search(&connection, &self.attributes(&params.key)).await? {
+            for item in self
+                .search(&connection, &self.attributes(&params.key))
+                .await?
+            {
                 connection
-                    .call_method(Some(SERVICE), item.as_ref(), Some(ITEM_IFACE), "Delete", &())
+                    .call_method(
+                        Some(SERVICE),
+                        item.as_ref(),
+                        Some(ITEM_IFACE),
+                        "Delete",
+                        &(),
+                    )
                     .await
                     .map_err(operation_failed)?;
             }
@@ -248,7 +259,11 @@ impl ApiHandler for SecretsModule {
         "secrets"
     }
 
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
         Box::pin(async move {
             match method {
                 #[cfg(feature = "tier2")]

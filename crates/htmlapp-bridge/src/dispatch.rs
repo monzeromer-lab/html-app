@@ -34,7 +34,11 @@ pub trait ApiHandler: Send + Sync + 'static {
     fn name(&self) -> &'static str;
 
     /// Handle a request/response call.
-    fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>>;
+    fn invoke<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>>;
 
     /// Open a stream. The default refuses, so a module with no streaming methods says so honestly
     /// rather than hanging a `for await` loop forever.
@@ -128,7 +132,11 @@ pub struct Dispatcher {
 }
 
 impl Dispatcher {
-    pub fn new(transport: Arc<dyn Transport>, granted: Option<Permissions>, headless: bool) -> Self {
+    pub fn new(
+        transport: Arc<dyn Transport>,
+        granted: Option<Permissions>,
+        headless: bool,
+    ) -> Self {
         Self {
             handlers: HashMap::new(),
             granted,
