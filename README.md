@@ -44,8 +44,9 @@ printf 'name,score\nada,91\ngrace,88\n' | ./target/release/htmlapp examples/csv-
 Ubuntu / Debian:
 
 ```sh
-sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
-                 libxkbcommon-dev libwayland-dev libvulkan-dev libssl-dev pkg-config
+sudo apt install pkg-config libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+                 libsoup-3.0-dev libgtk-3-dev libudev-dev libx11-dev libxkbcommon-dev \
+                 libwayland-dev libfontconfig1-dev libfreetype-dev libvulkan-dev libssl-dev
 ```
 
 Rust 1.90 or newer.

@@ -13,15 +13,18 @@
 
 ```sh
 # Ubuntu / Debian
-sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
-                 libxkbcommon-dev libwayland-dev libvulkan-dev libssl-dev pkg-config
+sudo apt install pkg-config libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+                 libsoup-3.0-dev libgtk-3-dev libudev-dev libx11-dev libxkbcommon-dev \
+                 libwayland-dev libfontconfig1-dev libfreetype-dev libvulkan-dev libssl-dev
 
 # Fedora
-sudo dnf install webkit2gtk4.1-devel gtk3-devel libsoup3-devel \
-                 libxkbcommon-devel wayland-devel vulkan-loader-devel openssl-devel
+sudo dnf install webkit2gtk4.1-devel gtk3-devel libsoup3-devel systemd-devel \
+                 libX11-devel libxkbcommon-devel wayland-devel fontconfig-devel \
+                 freetype-devel vulkan-loader-devel openssl-devel
 
 # Arch
-sudo pacman -S webkit2gtk-4.1 gtk3 libsoup3 libxkbcommon wayland vulkan-icd-loader openssl
+sudo pacman -S webkit2gtk-4.1 gtk3 libsoup3 systemd-libs libx11 libxkbcommon \
+               wayland fontconfig freetype2 vulkan-icd-loader openssl
 
 cargo build --release
 ./target/release/htmlapp install    # register the .hta file type

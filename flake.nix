@@ -26,6 +26,8 @@
           openssl
           libxkbcommon
           wayland
+          # libudev.pc — probed by libudev-sys, which `udev` and `serialport` both pull in.
+          systemd
           vulkan-loader
           libGL
           xorg.libX11

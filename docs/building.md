@@ -22,12 +22,22 @@ Rust 1.90 or newer.
 | | Ubuntu / Debian | Fedora | Arch |
 |---|---|---|---|
 | WebKitGTK | `libwebkit2gtk-4.1-dev` | `webkit2gtk4.1-devel` | `webkit2gtk-4.1` |
+| JavaScriptCore | `libjavascriptcoregtk-4.1-dev` | *(with WebKitGTK)* | *(with WebKitGTK)* |
 | GTK 3 | `libgtk-3-dev` | `gtk3-devel` | `gtk3` |
 | libsoup 3 | `libsoup-3.0-dev` | `libsoup3-devel` | `libsoup3` |
+| udev | `libudev-dev` | `systemd-devel` | `systemd-libs` |
+| X11 | `libx11-dev` | `libX11-devel` | `libx11` |
 | xkbcommon | `libxkbcommon-dev` | `libxkbcommon-devel` | `libxkbcommon` |
 | Wayland | `libwayland-dev` | `wayland-devel` | `wayland` |
+| fontconfig | `libfontconfig1-dev` | `fontconfig-devel` | `fontconfig` |
+| FreeType | `libfreetype-dev` | `freetype-devel` | `freetype2` |
 | Vulkan | `libvulkan-dev` | `vulkan-loader-devel` | `vulkan-icd-loader` |
 | OpenSSL | `libssl-dev` | `openssl-devel` | `openssl` |
+
+`udev` is easy to miss: nothing names it directly, but `serialport` and the `udev` module both pull
+in `libudev-sys`, which probes for it. CI installs this exact list from
+[`.github/actions/linux-deps`](../.github/actions/linux-deps/action.yml), which is the canonical
+copy.
 
 Optional, for specific features:
 

@@ -6,7 +6,8 @@ pkgdesc="Run a single .hta file as a Linux desktop application"
 arch=('x86_64' 'aarch64')
 url="https://github.com/monzeromer-lab/htmlapp"
 license=('Apache-2.0')
-depends=('webkit2gtk-4.1' 'gtk3' 'vulkan-icd-loader' 'libxkbcommon')
+depends=('webkit2gtk-4.1' 'gtk3' 'vulkan-icd-loader' 'libxkbcommon' 'systemd-libs'
+         'libx11' 'fontconfig' 'freetype2' 'wayland' 'openssl')
 makedepends=('rust' 'cargo' 'pkgconf' 'libsoup3')
 # xdg-desktop-portal backs dialog/screenshot/background; bubblewrap backs --sandbox.
 optdepends=(
