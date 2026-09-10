@@ -1,9 +1,9 @@
-//! Stapling and desktop integration (PRD §13, §7.3).
+//! Stapling and desktop integration (docs/building.md).
 
 use htmlapp_build::desktop;
 use htmlapp_build::staple;
 
-/// §13: the end user gets one file and never learns the word "HTML App".
+/// Packaging and distribution: the end user gets one file and never learns the word "HTML App".
 #[test]
 fn stapled_document_round_trips() {
     let temp = tempfile::tempdir().unwrap();
@@ -76,9 +76,9 @@ fn empty_document_staples_cleanly() {
     assert_eq!(staple::extract(&output).unwrap(), Some(Vec::new()));
 }
 
-// --- §7.3 desktop integration ---
+// --- desktop integration ---
 
-/// §7.3: "`%f` is the whole mechanism" — one entry serves both the menu and the file manager.
+/// Desktop integration: "`%f` is the whole mechanism" — one entry serves both the menu and the file manager.
 #[test]
 fn desktop_entry_matches_the_prd() {
     let entry = desktop::runtime_desktop_entry("htmlapp");
@@ -92,7 +92,7 @@ fn desktop_entry_matches_the_prd() {
     assert!(entry.contains("Categories=Development;Utility;"));
 }
 
-/// §13: ".html is deliberately not hijacked."
+/// Packaging and distribution: ".html is deliberately not hijacked."
 #[test]
 fn mime_registration_claims_hta_only() {
     let package = desktop::mime_package();
@@ -105,7 +105,7 @@ fn mime_registration_claims_hta_only() {
     assert!(package.contains("application/x-hta"));
 }
 
-/// §7.4: an app built with `htmlapp build` "never routes through any of this".
+/// The process and instance model: an app built with `htmlapp build` "never routes through any of this".
 #[test]
 fn built_app_entry_does_not_claim_the_hta_type() {
     let manifest =
@@ -138,7 +138,7 @@ fn manifest_icon_is_extracted() {
     assert_eq!(std::fs::read_to_string(&written).unwrap(), svg);
 }
 
-/// A remote icon URL would mean fetching from wherever the manifest points, which §4.2 N5 rules out.
+/// A remote icon URL would mean fetching from wherever the manifest points, which the goals and non-goals, N5 rules out.
 #[test]
 fn remote_icon_url_is_not_fetched() {
     let temp = tempfile::tempdir().unwrap();

@@ -1,13 +1,13 @@
-//! The consent sheet (PRD §11.2 rule 3).
+//! The consent sheet (docs/security.md, rule 3).
 //!
 //! "On first run of an unknown file, a native GPUI sheet lists exactly what was requested, in plain
 //! language, with the source path. The decision is stored keyed on `sha256(file)`. Editing the file
 //! invalidates consent and re-prompts, with a diff of what changed in the permission set."
 //!
 //! Two things about the design are deliberate. The default action is **Run without permissions**,
-//! not Allow — §11.2 rule 1 makes a powerless document a working document, so the safe choice is
+//! not Allow — the security model, rule 1 makes a powerless document a working document, so the safe choice is
 //! also a useful one. And an escalation over a previously-trusted version of the same file is
-//! called out explicitly, because §11.3 lists "trojan update to a trusted file" as a named threat
+//! called out explicitly, because the threat model lists "trojan update to a trusted file" as a named threat
 //! and a silent re-prompt would look identical to a first run.
 
 use std::path::PathBuf;
@@ -26,7 +26,7 @@ use crate::theme::Theme;
 pub enum ConsentChoice {
     /// Grant everything requested and remember it against this file's hash.
     Allow,
-    /// Run the document as a plain page with no native APIs (§11.2 rule 1).
+    /// Run the document as a plain page with no native APIs (docs/security.md, rule 1).
     RunPowerless,
     /// Do not run it at all.
     Cancel,
@@ -215,7 +215,7 @@ impl ConsentSheet {
                         request.app_name
                     ))),
             )
-            // §11.2 rule 3 requires the source path: the file's own name is chosen by whoever
+            // The security model, rule 3 requires the source path: the file's own name is chosen by whoever
             // wrote it, so it is not evidence of anything.
             .child(
                 div()
@@ -234,7 +234,7 @@ impl ConsentSheet {
             )
     }
 
-    /// The escalation banner, when a previously-trusted file has changed (§11.3).
+    /// The escalation banner, when a previously-trusted file has changed (docs/security.md).
     fn render_diff(&self, request: &ConsentRequest, theme: Theme) -> Option<impl IntoElement> {
         let diff = request.diff.as_ref()?;
         if !request.previously_seen || diff.is_empty() {

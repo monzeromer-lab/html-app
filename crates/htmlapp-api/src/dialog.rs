@@ -1,7 +1,7 @@
-//! `dialog` — the desktop's own file pickers (PRD §9.3 Tier 1).
+//! `dialog` — the desktop's own file pickers (docs/api-reference.md, Tier 1).
 //!
 //! Routed through `xdg-desktop-portal`, so the picker is the system's and the choice is the user's.
-//! §11.2 rule 4: a file the user picked in their own file chooser is authorised by that act, so it
+//! The security model, rule 4: a file the user picked in their own file chooser is authorised by that act, so it
 //! is registered with the context and becomes readable and writable even though no manifest glob
 //! covers it. Only the exact file, never its directory.
 
@@ -206,7 +206,7 @@ impl ApiHandler for DialogModule {
 
 /// Show the portal file chooser for a `.hta`, outside any document's context.
 ///
-/// Used by the launcher's "Open an .hta file…" (§7.2). §11.2 rule 4 applies here too: the file the
+/// Used by the launcher's "Open an .hta file…" (docs/building.md). The security model, rule 4 applies here too: the file the
 /// user picks in their own desktop's chooser is authorised by that act, which is why the launcher
 /// can hand it straight to a new process without a manifest glob covering it.
 #[cfg(feature = "tier2")]
@@ -228,7 +228,7 @@ pub async fn choose_hta() -> Result<Option<std::path::PathBuf>, RpcError> {
         .map(|uri| std::path::PathBuf::from(percent_decode(uri.path()))))
 }
 
-/// Ask where to save a new document (§7.2, "New blank app").
+/// Ask where to save a new document (the launcher, "New blank app").
 #[cfg(feature = "tier2")]
 pub async fn choose_save_location(
     default_name: &str,

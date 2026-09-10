@@ -1,4 +1,4 @@
-//! `process` — running other programs (PRD §9.3 Tier 1).
+//! `process` — running other programs (docs/api-reference.md, Tier 1).
 //!
 //! The executable allow-list comes from the manifest and is checked before anything is spawned. A
 //! grant of `rg` means the bare name `rg`, resolved through the user's `PATH` by the OS — it does

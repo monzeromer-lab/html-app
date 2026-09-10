@@ -1,4 +1,4 @@
-//! `shell` — hand things to the desktop (PRD §9.3 Tier 4).
+//! `shell` — hand things to the desktop (docs/api-reference.md, Tier 4).
 
 use htmlapp_bridge::RpcError;
 use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture};

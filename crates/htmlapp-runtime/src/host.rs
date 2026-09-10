@@ -1,4 +1,4 @@
-//! The host half of the Tier 3 modules (PRD §9.3, §10).
+//! The host half of the Tier 3 modules (docs/api-reference.md and docs/bridge.md).
 //!
 //! `window`, `menu`, `palette`, and the native views can only be done by the thread that owns the
 //! window. Bridge calls arrive on Tokio workers, so they are turned into commands here and drained
@@ -13,15 +13,15 @@ use htmlapp_bridge::RpcError;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
-/// Something the shell is drawing over the page (§4.2 G2).
+/// Something the shell is drawing over the page (docs/architecture.md, G2).
 ///
 /// While one of these is up the page is occluded entirely, so the overlay is genuinely on top and
-/// receives input — rather than the page being hidden, which is what §6.6 says goes away.
+/// receives input — rather than the page being hidden, which is what the WebView ergonomics says goes away.
 #[derive(Debug, Clone)]
 pub enum Overlay {
-    /// The native command palette (§9.3 `palette`).
+    /// The native command palette (the API catalog `palette`).
     Palette { query: String, selected: usize },
-    /// A context menu (§9.3 `menu.popup`).
+    /// A context menu (the API catalog `menu.popup`).
     Menu {
         items: Vec<MenuEntry>,
         x: f32,
@@ -106,6 +106,8 @@ pub enum HostCommand {
     SetOpacity(f32),
     SetInputRegion(Option<Vec<htmlapp_engine::ViewRect>>),
     OpenWindow { path: Option<String> },
+    /// Begin dragging files out of this window (the API catalog `dnd.startDrag`).
+    StartDrag { paths: Vec<std::path::PathBuf> },
 }
 
 /// The concrete view behind an `<htmlapp-view>` element.
@@ -116,7 +118,7 @@ pub enum HostCommand {
 pub enum ViewBackend {
     Terminal(htmlapp_views::TerminalView),
     Table(htmlapp_views::TableView),
-    /// A kind this build does not implement yet (§14, M8).
+    /// A kind this build does not implement yet (the roadmap, M8).
     Unimplemented(String),
 }
 
@@ -151,7 +153,7 @@ impl ViewBackend {
     }
 }
 
-/// One native view placed by the page (§10).
+/// One native view placed by the page (docs/bridge.md).
 pub struct ViewState {
     pub kind: String,
     pub options: Value,
@@ -170,7 +172,7 @@ pub struct HostState {
     pub commands: Mutex<Vec<HostCommand>>,
     pub views: Mutex<BTreeMap<String, ViewState>>,
     /// A full-page region the host is painting over — a menu, palette, or dialog sheet. When set,
-    /// the page is occluded entirely rather than per-view (§4.2 G2).
+    /// The page is occluded entirely rather than per-view (docs/architecture.md, G2).
     pub overlay: Mutex<Option<htmlapp_engine::ViewRect>>,
     /// What that overlay is showing.
     pub overlay_state: Mutex<Option<Overlay>>,
@@ -225,11 +227,31 @@ pub struct RuntimeHost {
     state: Arc<HostState>,
     /// `false` in headless mode, where none of this has anywhere to go.
     has_window: bool,
+    /// Set once the API modules are registered, so `dnd.startDrag` can scope the files it is asked
+    /// to drag out. `None` until then, which is before any page script has run.
+    ctx: parking_lot::RwLock<Option<htmlapp_api::Ctx>>,
 }
 
 impl RuntimeHost {
     pub fn new(state: Arc<HostState>, has_window: bool) -> Self {
-        Self { state, has_window }
+        Self {
+            state,
+            has_window,
+            ctx: parking_lot::RwLock::new(None),
+        }
+    }
+
+    /// Hand over the enforcement context once the modules exist.
+    pub fn set_context(&self, ctx: htmlapp_api::Ctx) {
+        *self.ctx.write() = Some(ctx);
+    }
+
+    fn check_read(&self, path: &str) -> Result<std::path::PathBuf, RpcError> {
+        let ctx = self.ctx.read();
+        let ctx = ctx
+            .as_ref()
+            .ok_or_else(|| RpcError::internal("the host has no enforcement context yet"))?;
+        ctx.check_read(path)
     }
 }
 
@@ -266,7 +288,7 @@ impl RuntimeHost {
         }
 
         match (module, method) {
-            // --- window (§9.3 Tier 3) ---
+            // --- window (docs/api-reference.md, Tier 3) ---
             ("window", "setTitle") => {
                 let title = string(&params, "title")
                     .ok_or_else(|| RpcError::invalid_params("title is required"))?;
@@ -341,7 +363,7 @@ impl RuntimeHost {
                 Ok(Value::Null)
             }
             ("window", "open") => {
-                // §7.4: every document is its own process, so a second window from the same file
+                // The process and instance model: every document is its own process, so a second window from the same file
                 // is a second process rather than a second surface in this one.
                 let path = string(&params, "path");
                 self.state.push(HostCommand::OpenWindow { path: path.clone() });
@@ -395,7 +417,7 @@ impl RuntimeHost {
                 Ok(reply.await.unwrap_or(Value::Null))
             }
 
-            // --- dialogs the shell paints (§9.3 Tier 1) ---
+            // --- dialogs the shell paints (docs/api-reference.md, Tier 1) ---
             //
             // Painted by GPUI rather than routed through a portal, because these are modal to *this
             // document's window*: the portal has no notion of "ask inside that window".
@@ -421,7 +443,59 @@ impl RuntimeHost {
                 })
             }
 
-            // --- native views (§10) ---
+            // --- drag out (the API catalog `dnd`) ---
+            //
+            // Files dragged *in* arrive as `dnd:enter`/`dnd:drop` events from the engine. Dragging
+            // *out* is this call. The file is materialised here — writing `data` to a temp file if
+            // that is what was given — and handed to the host, which owns the X11 selection the
+            // drag needs.
+            ("dnd", "startDrag") => {
+                let mut paths: Vec<std::path::PathBuf> = Vec::new();
+
+                if let Some(listed) = params.get("paths").and_then(|v| v.as_array()) {
+                    for path in listed.iter().filter_map(|p| p.as_str()) {
+                        // Only files the document may read can be dragged out of it.
+                        paths.push(self.check_read(path)?);
+                    }
+                }
+
+                if let Some(data) = params.get("data") {
+                    let name = data
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("untitled");
+                    // A name, not a path: this must not be a way to write outside the temp dir.
+                    let name = std::path::Path::new(name)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "untitled".into());
+                    let contents = data.get("contents").and_then(|v| v.as_str()).unwrap_or("");
+
+                    let directory = std::env::temp_dir().join("htmlapp-drag");
+                    std::fs::create_dir_all(&directory)
+                        .map_err(|e| RpcError::internal(e.to_string()))?;
+                    let path = directory.join(name);
+                    std::fs::write(&path, contents)
+                        .map_err(|e| RpcError::internal(e.to_string()))?;
+                    paths.push(path);
+                }
+
+                if paths.is_empty() {
+                    return Err(RpcError::invalid_params(
+                        "startDrag needs either `paths` or `data`",
+                    ));
+                }
+
+                self.state.push(HostCommand::StartDrag { paths: paths.clone() });
+                Ok(json!(
+                    paths
+                        .iter()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                ))
+            }
+
+            // --- native views (docs/bridge.md) ---
             ("view", "create") => {
                 let id = string(&params, "id")
                     .ok_or_else(|| RpcError::invalid_params("id is required"))?;
@@ -515,7 +589,7 @@ impl RuntimeHost {
                     .map_err(RpcError::invalid_params)
             }
 
-            // --- layer-shell (§8.3) ---
+            // --- layer-shell (docs/document-format.md) ---
             //
             // Enumerating outputs works whether or not layer-shell does: knowing which monitors
             // exist is useful to any document, not just a bar.

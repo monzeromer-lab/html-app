@@ -1,4 +1,4 @@
-//! The wire format between the page and the host (PRD §9.1).
+//! The wire format between the page and the host (docs/bridge.md).
 //!
 //! Three message shapes, not one. A single request/response shape would force every bulk payload
 //! into one base64 blob, which the PRD calls out as the thing that makes tailing a log or reading
@@ -158,7 +158,7 @@ impl ErrorCode {
     }
 }
 
-/// Split a `module.method` name, which is how every entry in the §9.3 catalog is addressed.
+/// Split a `module.method` name, which is how every entry in the API catalog is addressed.
 pub fn split_method(method: &str) -> Option<(&str, &str)> {
     method.split_once('.')
 }

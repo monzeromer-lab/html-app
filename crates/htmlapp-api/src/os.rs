@@ -1,4 +1,4 @@
-//! `os` — platform, paths, battery, theme, locale (PRD §9.3 Tier 4).
+//! `os` — platform, paths, battery, theme, locale (docs/api-reference.md, Tier 4).
 
 use htmlapp_bridge::RpcError;
 use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture};
@@ -25,7 +25,7 @@ impl OsModule {
 }
 
 /// Which display server this session is actually using — reported on the launcher's diagnostics
-/// strip (§7.2) and used by the runtime to decide whether layer-shell is even available.
+/// strip (docs/building.md) and used by the runtime to decide whether layer-shell is even available.
 pub fn session_type() -> &'static str {
     match std::env::var("XDG_SESSION_TYPE").as_deref() {
         Ok("wayland") => "wayland",
@@ -44,7 +44,7 @@ pub fn compositor() -> Option<String> {
         .or_else(|| std::env::var("DESKTOP_SESSION").ok().filter(|s| !s.is_empty()))
 }
 
-/// Identify the GPU, for the launcher's diagnostics strip (§7.2).
+/// Identify the GPU, for the launcher's diagnostics strip (docs/building.md).
 ///
 /// Read from DRM sysfs rather than by shelling out to `lspci` or `vulkaninfo`: those are not
 /// installed everywhere, and a diagnostics strip that says "unknown" because a tool is missing is

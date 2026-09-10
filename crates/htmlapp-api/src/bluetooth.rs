@@ -1,4 +1,4 @@
-//! `bluetooth` — adapters and devices, via BlueZ (PRD §9.3 Tier 4).
+//! `bluetooth` — adapters and devices, via BlueZ (docs/api-reference.md, Tier 4).
 //!
 //! `bluer` talks to `bluetoothd` over D-Bus, so this needs a running BlueZ but no `libbluetooth`
 //! development package.

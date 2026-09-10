@@ -1,7 +1,7 @@
-//! The capability model (PRD §9.3 and §11.2).
+//! The capability model (docs/api-reference.md and docs/security.md).
 //!
 //! Permissions are declared in the manifest and enforced in Rust. Nothing in JS can widen them:
-//! the `htmlapp` object is frozen, and a module whose permission was not granted is never injected
+//! The `htmlapp` object is frozen, and a module whose permission was not granted is never injected
 //! at all, so `typeof htmlapp.fs === "undefined"` is a truthful feature test.
 
 use std::collections::BTreeSet;
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{CapsError, Result};
 
-/// The full permission block from §8.2, covering every tier of the §9.3 catalog.
+/// The full permission block from the manifest, covering every tier of the API catalog.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Permissions {
@@ -21,7 +21,7 @@ pub struct Permissions {
     pub fs: Option<FsPermission>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub process: Option<ProcessPermission>,
-    /// Always available when declared; the picker itself is the user's consent (§11.2 rule 4).
+    /// Always available when declared; the picker itself is the user's consent (docs/security.md, rule 4).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub dialog: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -77,7 +77,7 @@ pub struct Permissions {
     pub os: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub shell: bool,
-    /// §9.3: "the loudest permission in the system, off by default, never granted implicitly."
+    /// The API catalog: "the loudest permission in the system, off by default, never granted implicitly."
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ffi: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -105,7 +105,7 @@ impl Permissions {
         Ok(())
     }
 
-    /// The set of JS module names to inject (§9.3). A module absent from this set is not
+    /// The set of JS module names to inject (docs/api-reference.md). A module absent from this set is not
     /// injected at all, so the property genuinely does not exist on `htmlapp`.
     pub fn granted_modules(&self) -> BTreeSet<&'static str> {
         let mut modules = BTreeSet::new();
@@ -196,8 +196,8 @@ impl Permissions {
         modules
     }
 
-    /// Plain-language lines for the consent sheet (§11.2 rule 3). Ordered most-alarming-first so
-    /// the risky grants are never below the fold.
+    /// Plain-language lines for the consent sheet (docs/security.md, rule 3). Ordered most-alarming-first so
+    /// The risky grants are never below the fold.
     pub fn describe(&self) -> Vec<PermissionDescription> {
         let mut out = Vec::new();
 
@@ -420,7 +420,7 @@ pub enum ClipboardAccess {
     Write,
 }
 
-/// The `xdg-desktop-portal` interfaces from §9.3 Tier 2.
+/// The `xdg-desktop-portal` interfaces from the API catalog, Tier 2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PortalCapability {
@@ -436,7 +436,7 @@ pub enum PortalCapability {
     FileChooser,
 }
 
-/// §11.3: a bare wildcard origin would make the `http` allow-list meaningless, so it is refused
+/// The threat model: a bare wildcard origin would make the `http` allow-list meaningless, so it is refused
 /// at parse time rather than silently accepted.
 fn validate_origin(origin: &str) -> Result<()> {
     let trimmed = origin.trim();
@@ -486,7 +486,7 @@ pub fn expand_tilde_str(pattern: &str) -> String {
 
 /// A compiled, enforceable view of one set of path globs.
 ///
-/// §11.2 rule 5: paths are resolved to canonical form *before* the glob check, so a symlink at
+/// The security model, rule 5: paths are resolved to canonical form *before* the glob check, so a symlink at
 /// `~/logs/link-to-etc` cannot be used to escape the granted set.
 #[derive(Clone)]
 pub struct PathScope {

@@ -1,4 +1,4 @@
-//! `stdio` — headless mode (PRD §9.4).
+//! `stdio` — headless mode (docs/bridge.md).
 //!
 //! What makes a `.hta` a legitimate participant in a shell pipeline:
 //! `cat access.log | htmlapp report.hta --headless > summary.json`.

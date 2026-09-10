@@ -1,8 +1,8 @@
-//! `htmlapp` — the command line entry point (PRD §7.1).
+//! `htmlapp` — the command line entry point (docs/building.md).
 //!
-//! §7.1 is emphatic that "the CLI is one way in, not *the* way in", and that a bare invocation with
+//! The launch modes is emphatic that "the CLI is one way in, not *the* way in", and that a bare invocation with
 //! no document is a normal launch rather than a usage error. So the default action here is to open
-//! the launcher, and every subcommand is something you asked for explicitly.
+//! The launcher, and every subcommand is something you asked for explicitly.
 
 mod delegate;
 
@@ -23,11 +23,11 @@ use htmlapp_runtime::{Session, SessionOptions};
     disable_help_subcommand = true
 )]
 struct Cli {
-    /// The `.hta` document to run. With no document, the launcher opens (§7.2).
+    /// The `.hta` document to run. With no document, the launcher opens (docs/building.md).
     #[arg(value_name = "DOCUMENT")]
     document: Option<PathBuf>,
 
-    /// Run with no window: stdin → stdout (§9.4).
+    /// Run with no window: stdin → stdout (docs/bridge.md).
     #[arg(long)]
     headless: bool,
 
@@ -43,13 +43,21 @@ struct Cli {
     #[arg(long)]
     devtools: bool,
 
-    /// Do not record this document in the launcher's recents (§17 open question 8).
+    /// Do not record this document in the launcher's recents (the open questions, open question 8).
     #[arg(long)]
     private: bool,
 
     /// Run the document with no native APIs, whatever its manifest asks for.
     #[arg(long = "no-permissions")]
     no_permissions: bool,
+
+    /// A hint passed to the document as `htmlapp.format` (docs/bridge.md).
+    #[arg(long, value_name = "FORMAT")]
+    format: Option<String>,
+
+    /// Re-exec under bubblewrap with only the granted paths bind-mounted (docs/security.md, rule 7).
+    #[arg(long)]
+    sandbox: bool,
 
     /// Increase log verbosity. Repeat for more.
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -61,13 +69,13 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Inspect and revoke stored permission grants (§11.2 rule 6).
+    /// Inspect and revoke stored permission grants (docs/security.md, rule 6).
     Permissions {
         #[command(subcommand)]
         action: Option<PermissionsAction>,
     },
 
-    /// Produce a standalone app from a `.hta` (§13).
+    /// Produce a standalone app from a `.hta` (docs/building.md).
     Build {
         document: PathBuf,
         /// Where to write the outputs.
@@ -81,19 +89,19 @@ enum Command {
         no_flatpak: bool,
     },
 
-    /// Emit TypeScript declarations for the bridge (§9.2).
+    /// Emit TypeScript declarations for the bridge (docs/bridge.md).
     Types,
 
     /// Inspect a document's manifest without running it.
     Inspect { document: PathBuf },
 
-    /// The cached remote modules from a document's import map (§8.5).
+    /// The cached remote modules from a document's import map (docs/document-format.md).
     Cache {
         #[command(subcommand)]
         action: Option<CacheAction>,
     },
 
-    /// Register the `.desktop` entry, MIME type, and icons (§7.3).
+    /// Register the `.desktop` entry, MIME type, and icons (docs/building.md).
     Install {
         /// Install system-wide instead of for this user.
         #[arg(long)]
@@ -115,7 +123,7 @@ enum PermissionsAction {
     ///
     /// This is the deliberate, explicit path for the cases where a sheet cannot be shown: a
     /// headless document in a pipeline, or a layer-shell bar with nothing on screen to attach a
-    /// dialog to (§17 open question 6).
+    /// dialog to (the open questions, open question 6).
     Allow {
         document: PathBuf,
         /// Print what would be granted and stop.
@@ -139,7 +147,7 @@ enum CacheAction {
 }
 
 fn main() -> ExitCode {
-    // §7.1: "A stapled binary (./tool) runs its embedded document. The launcher never appears."
+    // The launch modes: "A stapled binary (./tool) runs its embedded document. The launcher never appears."
     // Checked before argument parsing, because a built app's own flags are its business, not ours.
     if let Some(document) = htmlapp_build::extract_from_current_exe() {
         return match run_stapled(document) {
@@ -190,7 +198,16 @@ fn tokio_runtime() -> Result<tokio::runtime::Runtime> {
 fn run_stapled(document: Vec<u8>) -> Result<i32> {
     init_tracing(0);
     let document = Document::from_bytes(&document).context("the stapled document is not valid")?;
-    let session = Session::from_document(document, SessionOptions::default())?;
+    let config = htmlapp_runtime::Config::load();
+    let session = Session::from_document(
+        document,
+        SessionOptions {
+            devtools: config.devtools,
+            private: !config.recents,
+            sandbox: config.sandbox,
+            ..Default::default()
+        },
+    )?;
     let runtime = tokio_runtime()?;
     Ok(htmlapp_runtime::app::run(session, runtime)?)
 }
@@ -215,8 +232,19 @@ fn dispatch(cli: Cli) -> Result<i32> {
 
         None => match cli.document.clone() {
             Some(path) => run_document(&path, &cli),
-            // §7.1: no document is a normal launch.
+            // The launch modes: no document is a normal launch.
             None => {
+                // The open questions Q9: `launcher = false` makes a bare invocation print help instead.
+                let config = htmlapp_runtime::Config::load();
+                if !config.launcher && !cli.open && !cli.permissions_ui {
+                    use clap::CommandFactory as _;
+                    Cli::command().print_help()?;
+                    println!(
+                        "\nThe launcher window is disabled by `launcher = false` in {}.",
+                        htmlapp_runtime::Config::default_path().display()
+                    );
+                    return Ok(0);
+                }
                 delegate::run_launcher(cli.open, cli.permissions_ui)?;
                 Ok(0)
             }
@@ -225,15 +253,30 @@ fn dispatch(cli: Cli) -> Result<i32> {
 }
 
 fn run_document(path: &PathBuf, cli: &Cli) -> Result<i32> {
+    let config = htmlapp_runtime::Config::load();
+
     let options = SessionOptions {
         headless: cli.headless,
-        devtools: cli.devtools,
-        private: cli.private,
+        devtools: cli.devtools || config.devtools,
+        private: cli.private || !config.recents,
         force_powerless: cli.no_permissions,
+        format: cli.format.clone(),
+        sandbox: cli.sandbox || config.sandbox,
     };
 
     let session = Session::load(path, options)
         .with_context(|| format!("could not open {}", path.display()))?;
+
+    // The security model, rule 7. Done *after* the manifest is read, so the jail is built from what this
+    // document actually asked for — and before any of it runs.
+    if session.options.sandbox && !htmlapp_runtime::sandbox::is_sandboxed() {
+        if !htmlapp_runtime::sandbox::is_available() {
+            anyhow::bail!("--sandbox needs bubblewrap; install `bubblewrap` and try again");
+        }
+        // Never returns on success.
+        htmlapp_runtime::sandbox::reexec(session.granted.as_ref(), Some(path))
+            .context("could not re-exec under bubblewrap")?;
+    }
     let runtime = tokio_runtime()?;
     Ok(htmlapp_runtime::app::run(session, runtime)?)
 }
@@ -325,7 +368,7 @@ fn or_none(items: &[String]) -> String {
     }
 }
 
-/// `htmlapp permissions` (§11.2 rule 6).
+/// `htmlapp permissions` (docs/security.md, rule 6).
 fn permissions(action: Option<PermissionsAction>) -> Result<i32> {
     let mut store = ConsentStore::load_default()?;
 
@@ -369,7 +412,7 @@ fn permissions(action: Option<PermissionsAction>) -> Result<i32> {
             };
 
             // Show what is being granted even in the non-dry-run case: an unattended grant that
-            // prints nothing would be exactly the kind of silent trust §11.1 warns about.
+            // prints nothing would be exactly the kind of silent trust the failure to avoid warns about.
             println!("{}", loaded.manifest.display_name());
             println!("  path    {}", document.display());
             println!("  sha256  {}", loaded.hash);
@@ -448,7 +491,7 @@ fn or_none_str(items: &[&str]) -> String {
     }
 }
 
-/// `htmlapp cache` (§8.5, §17 open question 5).
+/// `htmlapp cache` (the import map, the open questions, open question 5).
 fn cache(action: Option<CacheAction>) -> Result<i32> {
     let cache = htmlapp_engine::ModuleCache::default_cache();
     match action.unwrap_or(CacheAction::Info) {
@@ -466,7 +509,7 @@ fn cache(action: Option<CacheAction>) -> Result<i32> {
     }
 }
 
-/// `htmlapp install` (§7.3, §13).
+/// `htmlapp install` (docs/building.md).
 fn install(system: bool) -> Result<i32> {
     let paths = if system {
         htmlapp_build::InstallPaths::system()
@@ -481,7 +524,7 @@ fn install(system: bool) -> Result<i32> {
     for path in &report.written {
         println!("wrote {}", path.display());
     }
-    // §13: "An install that leaves double-click broken is a failed install."
+    // Packaging and distribution: "An install that leaves double-click broken is a failed install."
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
     }
@@ -504,7 +547,7 @@ fn uninstall(system: bool) -> Result<i32> {
     Ok(0)
 }
 
-/// `htmlapp build` (§13).
+/// `htmlapp build` (docs/building.md).
 fn build(document: &PathBuf, out: PathBuf, appimage: bool, flatpak: bool) -> Result<i32> {
     let options = htmlapp_build::BuildOptions {
         output_dir: out,

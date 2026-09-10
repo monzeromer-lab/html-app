@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/hta">
+    <comment>HTML Application</comment>
+    <glob pattern="*.hta"/>
+    <sub-class-of type="text/html"/>
+    <icon name="text-html"/>
+    <generic-icon name="text-html"/>
+  </mime-type>
+  <mime-type type="application/x-hta">
+    <comment>HTML Application</comment>
+    <alias type="application/hta"/>
+  </mime-type>
+</mime-info>

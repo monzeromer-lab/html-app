@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+# Debian packaging for HTML App (PRD §13).
+#
+# §13 is firm that "an install that leaves double-click broken is a failed install", so the
+# .desktop entry, the MIME package, and the icon are all installed here rather than being left to
+# a post-install step that might not run.
+
+export DH_VERBOSE = 1
+export CARGO_HOME = $(CURDIR)/debian/cargo
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release --locked --bin htmlapp
+
+override_dh_auto_test:
+	cargo test --release --locked --workspace
+
+override_dh_auto_install:
+	install -Dm755 target/release/htmlapp debian/htmlapp/usr/bin/htmlapp
+	install -Dm644 packaging/htmlapp.desktop \
+		debian/htmlapp/usr/share/applications/htmlapp.desktop
+	install -Dm644 packaging/htmlapp.xml \
+		debian/htmlapp/usr/share/mime/packages/htmlapp.xml
+	install -Dm644 packaging/htmlapp.svg \
+		debian/htmlapp/usr/share/icons/hicolor/scalable/apps/htmlapp.svg
+	# §7.2: the launcher reads its examples from here.
+	install -dm755 debian/htmlapp/usr/share/htmlapp/examples
+	install -Dm644 examples/*.hta debian/htmlapp/usr/share/htmlapp/examples/
+
+override_dh_auto_clean:
+	cargo clean || true
+	rm -rf debian/cargo

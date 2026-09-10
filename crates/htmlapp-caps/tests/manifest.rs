@@ -1,8 +1,8 @@
-//! Manifest location and parsing (PRD §8).
+//! Manifest location and parsing (docs/document-format.md).
 
 use htmlapp_caps::{Document, Manifest, WindowMode, extract_manifest_json};
 
-/// The exact manifest printed in PRD §8.2 must parse, field for field.
+/// The exact manifest printed in the manifest must parse, field for field.
 #[test]
 fn prd_example_manifest_parses() {
     let json = r#"{
@@ -31,7 +31,7 @@ fn prd_example_manifest_parses() {
       }
     }"#;
 
-    let manifest = Manifest::from_json(json).expect("PRD §8.2 example must parse");
+    let manifest = Manifest::from_json(json).expect("the manifest example must parse");
     assert_eq!(manifest.name.as_deref(), Some("Log Triage"));
     assert_eq!(manifest.id.as_deref(), Some("dev.monzer.logtriage"));
     assert_eq!(manifest.window.width, 1200);
@@ -46,12 +46,12 @@ fn prd_example_manifest_parses() {
     assert!(modules.contains("sql"));
     assert!(modules.contains("clipboard"));
     assert!(modules.contains("notify"));
-    // Never requested, so §9.3 says the module must not exist at all.
+    // Never requested, so the API catalog says the module must not exist at all.
     assert!(!modules.contains("ffi"));
     assert!(!modules.contains("dbus"));
 }
 
-/// The §8.3 layer-shell block.
+/// The layer-shell window block.
 #[test]
 fn layer_mode_parses() {
     let json = r#"{ "window": { "mode": "layer", "layer": "top",
@@ -84,7 +84,7 @@ fn every_window_mode_round_trips() {
     assert!(WindowMode::Window.has_surface());
 }
 
-// --- §8.1: finding the block ---
+// --- the manifest design principle: finding the block ---
 
 #[test]
 fn finds_manifest_regardless_of_quoting_and_attribute_order() {
@@ -138,7 +138,7 @@ fn skips_preceding_scripts_to_find_the_manifest() {
     );
 }
 
-/// §8.1 and §11.2 rule 1: no manifest is a valid, silent, powerless document — not an error.
+/// The manifest design principle and the security model, rule 1: no manifest is a valid, silent, powerless document — not an error.
 #[test]
 fn document_without_manifest_is_powerless_not_an_error() {
     let html = b"<!DOCTYPE html><html><body><h1>Just a page</h1></body></html>";
@@ -148,7 +148,7 @@ fn document_without_manifest_is_powerless_not_an_error() {
     assert!(document.manifest.permissions.is_none());
 }
 
-/// §11.2 rule 3: the consent key is the hash of the file's content.
+/// The security model, rule 3: the consent key is the hash of the file's content.
 #[test]
 fn hash_tracks_content_not_path() {
     let a = Document::from_bytes(b"<html>one</html>").unwrap();
@@ -172,7 +172,7 @@ fn traversal_in_app_id_is_rejected() {
     assert!(Manifest::from_json(r#"{"id":"dev.monzer.log-triage_2"}"#).is_ok());
 }
 
-/// §8.5 / §11.3: an unpinned import is a supply-chain hole, so it fails to parse.
+/// The import map / the threat model: an unpinned import is a supply-chain hole, so it fails to parse.
 #[test]
 fn imports_must_declare_integrity() {
     let missing = r#"{"imports":{"d3":{"url":"https://esm.sh/d3@7","integrity":""}}}"#;

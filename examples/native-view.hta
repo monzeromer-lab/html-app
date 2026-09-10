@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  §10 — a native GPUI view placed inline in HTML layout.
+  the native views design — a native GPUI view placed inline in HTML layout.
 
   The <htmlapp-view> element is a transparent placeholder that takes part in normal
   flow. A ResizeObserver reports its rect over the bridge; the host shapes the page's
@@ -62,8 +62,8 @@
     ],
   });
 
-  // A hundred thousand rows, appended in batches. §9.1 is explicit that one giant payload is
-  // the thing to avoid — the bridge is not a place to put ten megabytes of JSON at once.
+  // A hundred thousand rows, appended in batches. The bridge transport is explicit that one giant payload is
+  // The thing to avoid — the bridge is not a place to put ten megabytes of JSON at once.
   const levels = ['INFO', 'WARN', 'ERROR', 'DEBUG'];
   const TOTAL = 100_000;
   const BATCH = 2_000;

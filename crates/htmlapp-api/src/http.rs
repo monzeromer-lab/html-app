@@ -1,8 +1,8 @@
-//! `http` — a fetch that ignores CORS (PRD §9.3 Tier 1).
+//! `http` — a fetch that ignores CORS (docs/api-reference.md, Tier 1).
 //!
 //! CORS is a browser policy for protecting *other people's* origins from a page. Here the host is
-//! the one deciding what may be reached, and it decides with the manifest's allow-list, which is
-//! both stricter and more legible than CORS would be. §11.3 names exfiltration as the threat this
+//! The one deciding what may be reached, and it decides with the manifest's allow-list, which is
+//! both stricter and more legible than CORS would be. The threat model names exfiltration as the threat this
 //! answers, so the check happens on every request and on every redirect hop.
 
 use htmlapp_bridge::RpcError;

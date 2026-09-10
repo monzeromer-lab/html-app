@@ -1,4 +1,4 @@
-//! Layer-shell, session-lock, and output management (PRD §8.3, §9.3 Tier 3).
+//! Layer-shell, session-lock, and output management (docs/document-format.md and docs/api-reference.md, Tier 3).
 //!
 //! # Status
 //!
@@ -16,7 +16,7 @@
 //!
 //! - [`Capabilities::detect`] — whether this compositor offers layer-shell and session-lock at all,
 //!   which is what the launcher's diagnostics strip and `htmlapp inspect` report.
-//! - [`outputs`] — enumerating monitors, backing `layer.listOutputs()` in §9.3 Tier 3.
+//! - [`outputs`] — enumerating monitors, backing `layer.listOutputs()` in the API catalog, Tier 3.
 //! - [`LayerConfig`] — the manifest-to-protocol translation, including the anchor bitmask.
 
 #![forbid(unsafe_code)]
@@ -34,7 +34,7 @@ pub const ANCHOR_BOTTOM: u32 = 2;
 pub const ANCHOR_LEFT: u32 = 4;
 pub const ANCHOR_RIGHT: u32 = 8;
 
-/// A layer-shell surface configuration, derived from the manifest (§8.3).
+/// A layer-shell surface configuration, derived from the manifest (docs/document-format.md).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LayerConfig {
     /// `zwlr_layer_shell_v1` layer enum value.
@@ -185,7 +185,7 @@ impl Capabilities {
 
 /// Enumerate the compositor's outputs.
 ///
-/// Backs `layer.listOutputs()` (§9.3 Tier 3) and works whether or not layer-shell is available —
+/// Backs `layer.listOutputs()` (docs/api-reference.md, Tier 3) and works whether or not layer-shell is available —
 /// knowing which monitors exist is useful to any document, not just a bar.
 pub fn outputs() -> Vec<OutputInfo> {
     let Ok(connection) = Connection::connect_to_env() else {

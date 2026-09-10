@@ -1,0 +1,61 @@
+# Flatpak manifest for the HTML App runtime (PRD §13).
+#
+# The confinement here is deliberately tight. A runtime that shipped with
+# `--filesystem=home` would quietly overrule every manifest in every document it ran,
+# which is exactly the failure §11.1 exists to avoid. Documents reach the filesystem
+# through the portal instead, so the user's own file chooser is the grant.
+app-id: app.htmlapp.HtmlApp
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: htmlapp
+
+finish-args:
+  # Rendering.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Documents may declare `net.fetch`; without this even a granted origin is unreachable.
+  - --share=network
+
+  # Notifications and the tray (StatusNotifierItem).
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+
+  # The keyring, for the `secrets` module.
+  - --talk-name=org.freedesktop.secrets
+
+  # NOT granted, on purpose:
+  #   --filesystem=home      documents get files through the portal, per document
+  #   --talk-name=org.freedesktop.systemd1   unit control is a host capability
+  #   --device=all           serial/usb/bluetooth need an explicit override
+
+modules:
+  - name: htmlapp
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/htmlapp/cargo
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --locked --bin htmlapp
+      - install -Dm755 target/release/htmlapp /app/bin/htmlapp
+      - install -Dm644 packaging/htmlapp.desktop
+        /app/share/applications/app.htmlapp.HtmlApp.desktop
+      - install -Dm644 packaging/htmlapp.xml /app/share/mime/packages/htmlapp.xml
+      - install -Dm644 packaging/htmlapp.svg
+        /app/share/icons/hicolor/scalable/apps/app.htmlapp.HtmlApp.svg
+      - install -dm755 /app/share/htmlapp/examples
+      - install -Dm644 examples/hello.hta -t /app/share/htmlapp/examples/
+      - install -Dm644 examples/csv-report.hta -t /app/share/htmlapp/examples/
+      - install -Dm644 examples/log-triage.hta -t /app/share/htmlapp/examples/
+      - install -Dm644 examples/sql-notebook.hta -t /app/share/htmlapp/examples/
+      - install -Dm644 examples/native-view.hta -t /app/share/htmlapp/examples/
+    sources:
+      - type: dir
+        path: ../..

@@ -1,4 +1,4 @@
-//! The GPUI application: launcher, consent, and document windows (PRD §7).
+//! The GPUI application: launcher, consent, and document windows (docs/architecture.md).
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -27,10 +27,10 @@ use crate::transport::QueueTransport;
 /// without spinning a core when nothing is happening.
 const PUMP_INTERVAL: std::time::Duration = std::time::Duration::from_millis(8);
 
-/// Diagnostics for the launcher's strip (§7.2).
+/// Diagnostics for the launcher's strip (docs/building.md).
 ///
-/// §7.2 wants this "copyable as a single block, so bug reports arrive with it" — so it reports what
-/// the *compositor* offers as well as what this build does. "your compositor has no layer-shell"
+/// The launcher wants this "copyable as a single block, so bug reports arrive with it" — so it reports what
+/// The *compositor* offers as well as what this build does. "your compositor has no layer-shell"
 /// and "this build cannot render into one" are different problems with different fixes.
 pub fn diagnostics(engine: Option<&dyn WebEngine>) -> Diagnostics {
     let capabilities = htmlapp_wayland::Capabilities::detect();
@@ -55,10 +55,10 @@ pub fn diagnostics(engine: Option<&dyn WebEngine>) -> Diagnostics {
 }
 
 // ---------------------------------------------------------------------------
-// The launcher (§7.2)
+// The launcher (docs/building.md)
 // ---------------------------------------------------------------------------
 
-/// Run the launcher. §7.1: a bare invocation is a normal launch, not a usage error.
+/// Run the launcher. The launch modes: a bare invocation is a normal launch, not a usage error.
 pub fn run_launcher(delegate: Arc<dyn LauncherDelegate>) -> Result<()> {
     let diagnostics = diagnostics(None);
 
@@ -99,7 +99,7 @@ pub fn run_launcher(delegate: Arc<dyn LauncherDelegate>) -> Result<()> {
     Ok(())
 }
 
-/// Open the consent manager (§11.2 rule 6).
+/// Open the consent manager (docs/security.md, rule 6).
 pub fn run_permissions_manager() -> Result<()> {
     struct RevealDelegate;
     impl htmlapp_shell::PermissionsDelegate for RevealDelegate {
@@ -148,7 +148,7 @@ pub fn run_permissions_manager() -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// A document window, with consent resolved first (§11.2 rule 3, §7.1)
+// A document window, with consent resolved first (docs/security.md, rule 3 and docs/building.md)
 // ---------------------------------------------------------------------------
 
 /// The engine, which cannot be built until the host window exists on the X server.
@@ -262,9 +262,9 @@ impl DocumentRoot {
         }
     }
 
-    /// Every region of the page the host is drawing over, in logical pixels (§4.2 G2).
+    /// Every region of the page the host is drawing over, in logical pixels (docs/architecture.md, G2).
     ///
-    /// Native views (§10) sit here, and so does anything modal the shell puts up. The page's child
+    /// Native views (docs/bridge.md) sit here, and so does anything modal the shell puts up. The page's child
     /// window is shaped to exclude them, so GPUI's own painting shows through and receives input.
     fn occlusions(&self) -> Vec<htmlapp_engine::ViewRect> {
         let mut rects: Vec<htmlapp_engine::ViewRect> = self
@@ -490,7 +490,7 @@ impl DocumentRoot {
                     }
                 }
                 HostCommand::OpenWindow { path } => {
-                    // §7.4: a second window from the same file is a second *process*.
+                    // The process and instance model: a second window from the same file is a second *process*.
                     let target = path
                         .map(std::path::PathBuf::from)
                         .or_else(|| self.source.clone());
@@ -501,6 +501,27 @@ impl DocumentRoot {
                             .arg(target)
                             .stdin(std::process::Stdio::null())
                             .spawn();
+                    }
+                }
+                HostCommand::StartDrag { paths } => {
+                    // The files are ready; what is missing is the XDND *source* half — owning the
+                    // selection and answering XdndPosition until a target accepts. Neither GPUI nor
+                    // wry exposes a drag source, so this stops here rather than pretending.
+                    //
+                    // The paths are put on the clipboard so the gesture at least has a fallback the
+                    // user can complete by hand, and the page is told what happened.
+                    tracing::info!(
+                        count = paths.len(),
+                        "startDrag: files prepared; the XDND source protocol is not implemented, \
+                         so the paths were placed on the clipboard instead"
+                    );
+                    let uris = paths
+                        .iter()
+                        .map(|p| format!("file://{}", p.display()))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        let _ = clipboard.set_text(uris);
                     }
                 }
                 other => tracing::debug!(?other, "host command is not wired to the window yet"),
@@ -519,7 +540,74 @@ impl DocumentRoot {
 }
 
 impl DocumentRoot {
-    /// Draw whatever overlay is up (§4.2 G2).
+    /// The application menu bar (the API catalog `menu.setApplicationMenu`).
+    fn render_menu_bar(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        let items = self.state.menu.lock().clone()?;
+        let items = items.as_array()?.clone();
+        if items.is_empty() {
+            return None;
+        }
+        let theme = self.theme;
+
+        let mut bar = div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .px_2()
+            .h(px(28.0))
+            .border_b_1()
+            .border_color(theme.border)
+            .bg(theme.surface)
+            .text_size(rems(0.8125));
+
+        for (index, item) in items.iter().enumerate() {
+            let label = item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if label.is_empty() {
+                continue;
+            }
+
+            // A top-level entry with a submenu opens it as a popup; one without is a command.
+            let submenu = item.get("submenu").and_then(|v| v.as_array()).cloned();
+            let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+            bar = bar.child(
+                div()
+                    .id(("menu-bar", index))
+                    .px_2()
+                    .py_1()
+                    .rounded(px(4.0))
+                    .cursor_pointer()
+                    .text_color(theme.text)
+                    .hover(|style| style.bg(theme.surface_hover))
+                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                        match &submenu {
+                            Some(entries) => {
+                                let mut flattened = Vec::new();
+                                crate::host::flatten_menu(entries, 0, &mut flattened);
+                                *this.state.overlay_state.lock() = Some(Overlay::Menu {
+                                    items: flattened,
+                                    // Under the bar entry that opened it.
+                                    x: 8.0 + index as f32 * 72.0,
+                                    y: 28.0,
+                                    selected: 0,
+                                });
+                                *this.state.overlay_reply.lock() = None;
+                            }
+                            None => {
+                                this.events
+                                    .emit("menu:select", serde_json::json!({ "id": id }));
+                            }
+                        }
+                        cx.notify();
+                    }))
+                    .child(SharedString::from(label)),
+            );
+        }
+
+        Some(bar)
+    }
+
+    /// Draw whatever overlay is up (docs/architecture.md, G2).
     fn render_overlay(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
         let overlay = self.state.overlay_state.lock().clone()?;
         let theme = self.theme;
@@ -642,8 +730,17 @@ impl DocumentRoot {
                             .when_enabled(enabled, theme)
                             .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                                 if enabled {
+                                    // `menu.popup` resolves through the reply channel; a menu
+                                    // opened from the bar has none, so it emits an event instead.
+                                    let awaited = this.state.overlay_reply.lock().is_some();
                                     this.state
                                         .close_overlay(serde_json::Value::String(id.clone()));
+                                    if !awaited {
+                                        this.events.emit(
+                                            "menu:select",
+                                            serde_json::json!({ "id": id }),
+                                        );
+                                    }
                                     cx.notify();
                                 }
                             }))
@@ -796,8 +893,18 @@ impl Render for DocumentRoot {
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
             .relative()
+            .flex()
+            .flex_col()
             .size_full()
             .bg(self.theme.background);
+
+        // The application menu bar, if the page set one. It takes vertical space above the page,
+        // which is why the root is a column: the webview element then lays out below it and the
+        // occlusion rects, which come from the page's own coordinates, still line up.
+        if let Some(bar) = self.render_menu_bar(cx) {
+            root = root.child(bar);
+        }
+
         if let Some(webview) = &self.webview {
             root = root.child(webview.element());
         }
@@ -858,10 +965,8 @@ impl DocumentLaunch {
             false,
         );
 
-        let registered = match session.register_modules(
-            &mut dispatcher,
-            Arc::new(RuntimeHost::new(Arc::clone(&self.state), true)),
-        ) {
+        let host = Arc::new(RuntimeHost::new(Arc::clone(&self.state), true));
+        let registered = match session.register_modules(&mut dispatcher, Arc::clone(&host) as _) {
             Ok(registered) => registered,
             Err(error) => {
                 tracing::error!(%error, "could not register the document's API modules");
@@ -871,6 +976,7 @@ impl DocumentLaunch {
             }
         };
         *self.processes.lock() = Some(Arc::clone(&registered.process));
+        host.set_context(Arc::clone(&registered.ctx));
 
         let events = dispatcher.events();
         let source = session.document.source.clone();
@@ -903,7 +1009,7 @@ impl DocumentLaunch {
                                 .collect::<Vec<_>>()
                         };
 
-                        // §11.2 rule 4: a file the user dropped is authorised by that act, the
+                        // The security model, rule 4: a file the user dropped is authorised by that act, the
                         // same way a file-chooser result is. Only the exact files dropped.
                         if let D::Drop { paths, .. } = &drag {
                             for path in paths {
@@ -1119,7 +1225,7 @@ pub fn run_document(session: Session, runtime: tokio::runtime::Runtime) -> Resul
         .detach();
     });
 
-    // §7.4: a page must not outlive its window by leaving a subprocess running.
+    // The process and instance model: a page must not outlive its window by leaving a subprocess running.
     if let Some(processes) = processes.lock().as_ref() {
         processes.kill_all();
     }
@@ -1152,11 +1258,15 @@ fn consent_request(session: &Session) -> ConsentRequest {
     }
 }
 
-/// Route a document to the right runner for its window mode (§8.3).
+/// Route a document to the right runner for its window mode (docs/document-format.md).
 pub fn run(session: Session, runtime: tokio::runtime::Runtime) -> Result<i32> {
     match session.window_mode() {
         WindowMode::Headless => crate::headless::run(session, &runtime),
         WindowMode::Window => run_document(session, runtime),
+        #[cfg(feature = "layer-shell")]
+        WindowMode::Layer | WindowMode::Lock => crate::layer::run(session, runtime),
+
+        #[cfg(not(feature = "layer-shell"))]
         mode @ (WindowMode::Layer | WindowMode::Lock) => {
             // Say which of the two obstacles is actually in the way, since only one of them is
             // something the user can do anything about.
@@ -1171,9 +1281,8 @@ pub fn run(session: Session, runtime: tokio::runtime::Runtime) -> Result<i32> {
             } else if !available {
                 "this compositor does not offer the protocol it needs"
             } else {
-                "this compositor offers the protocol, but the engine backend that ships today \
-                 attaches to an X11 window and cannot render into a layer surface. This mode is \
-                 waiting on the offscreen backend described in PRD §6.3"
+                "this build was compiled without the `layer-shell` feature. Install \
+                 `libgtk-layer-shell-dev` and rebuild with `--features layer-shell`"
             };
 
             Err(SessionError::Refused(format!(

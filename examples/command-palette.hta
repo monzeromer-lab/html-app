@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<!--
+  UC8 — a personal launcher / command palette overlay.
+
+  Exercises: layer-shell overlay, a global shortcut, process.exec, palette, window.
+
+  RUNNING THIS: `window.mode` is "layer", which needs the layer-shell feature:
+
+      sudo apt install libgtk-layer-shell-dev
+      cargo build --release --features layer-shell
+
+  Without it, `htmlapp examples/command-palette.hta` refuses with an explanation.
+  Change `"mode"` to `"window"` to try the same document as an ordinary window.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "Command Palette",
+  "id": "dev.htmlapp.palette",
+  "version": "1.0.0",
+  "window": {
+    "mode": "layer",
+    "layer": "overlay",
+    "keyboard_interactivity": "exclusive",
+    "background": "transparent",
+    "width": 640,
+    "height": 420
+  },
+  "permissions": {
+    "process":  { "exec": ["xdg-open", "systemctl", "loginctl"] },
+    "shortcut": ["ctrl+space"],
+    "shell":    true,
+    "os":       true,
+    "store":    true
+  }
+}
+</script>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: grid; place-items: start center;
+    padding-top: 12vh; background: transparent;
+    font: 14px/1.5 system-ui, sans-serif; color: #e6e8ec;
+  }
+  .palette {
+    width: min(600px, 92vw);
+    background: rgba(22, 24, 29, .96); border: 1px solid #ffffff26;
+    border-radius: 12px; overflow: hidden; box-shadow: 0 18px 50px #0009;
+    backdrop-filter: blur(20px);
+  }
+  input {
+    width: 100%; padding: 1rem 1.1rem; font: 16px/1 system-ui, sans-serif;
+    border: 0; border-bottom: 1px solid #ffffff1a;
+    background: transparent; color: inherit; outline: none;
+  }
+  ul { list-style: none; margin: 0; padding: .35rem; max-height: 320px; overflow: auto; }
+  li { display: flex; justify-content: space-between; gap: 1rem; align-items: center;
+       padding: .55rem .75rem; border-radius: 7px; cursor: pointer; }
+  li[aria-selected="true"] { background: #ffffff14; }
+  .sub { font-size: 12px; opacity: .55; }
+  .empty { padding: 1.5rem; text-align: center; opacity: .55; }
+</style>
+</head>
+<body>
+  <div class="palette">
+    <input id="query" placeholder="Type a command…" autocomplete="off" autofocus>
+    <ul id="results"></ul>
+  </div>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+
+  const commands = [
+    { id: 'lock',      title: 'Lock the session',    run: () => exec('loginctl', ['lock-session']) },
+    { id: 'suspend',   title: 'Suspend',             run: () => exec('systemctl', ['suspend']) },
+    { id: 'home',      title: 'Open home folder',    run: () => htmlapp.shell.open({ target: '~' }) },
+    { id: 'downloads', title: 'Open Downloads',      run: () => openPath('downloads') },
+    { id: 'docs',      title: 'Open Documents',      run: () => openPath('documents') },
+    { id: 'search',    title: 'Search the web…',     run: q =>
+        htmlapp.shell.open({ target: `https://duckduckgo.com/?q=${encodeURIComponent(q)}` }) },
+  ];
+
+  const exec = (program, args) => htmlapp.process.exec({ program, args });
+
+  async function openPath(which) {
+    const paths = await htmlapp.os.paths();
+    if (paths[which]) await htmlapp.shell.open({ target: paths[which] });
+  }
+
+  let matches = commands;
+  let selected = 0;
+
+  function render() {
+    const query = $('query').value.trim();
+    matches = query
+      ? commands.filter(c => c.title.toLowerCase().includes(query.toLowerCase()))
+      : commands;
+
+    // A query that matches nothing still offers the web search, so the palette is
+    // never a dead end.
+    if (!matches.length && query) matches = [commands.at(-1)];
+    selected = Math.min(selected, Math.max(matches.length - 1, 0));
+
+    $('results').replaceChildren(
+      ...(matches.length
+        ? matches.map((command, index) => {
+            const item = document.createElement('li');
+            item.setAttribute('aria-selected', String(index === selected));
+            item.innerHTML =
+              `<span>${command.title}</span><span class="sub">${command.id}</span>`;
+            item.onclick = () => activate(index);
+            return item;
+          })
+        : [Object.assign(document.createElement('div'),
+            { className: 'empty', textContent: 'No matches' })])
+    );
+  }
+
+  async function activate(index) {
+    const command = matches[index];
+    if (!command) return;
+    try {
+      await command.run($('query').value.trim());
+    } catch (e) {
+      console.error(e);
+    }
+    // A launcher's job is done the moment it launches something.
+    $('query').value = '';
+    render();
+    await htmlapp.window?.close?.();
+  }
+
+  $('query').oninput = () => { selected = 0; render(); };
+  $('query').onkeydown = event => {
+    switch (event.key) {
+      case 'ArrowDown': selected = Math.min(selected + 1, matches.length - 1); render(); break;
+      case 'ArrowUp':   selected = Math.max(selected - 1, 0); render(); break;
+      case 'Enter':     activate(selected); break;
+      case 'Escape':    htmlapp.window?.close?.(); break;
+      default: return;
+    }
+    event.preventDefault();
+  };
+
+  // The global hotkey the manifest declared. On Wayland the compositor owns the
+  // binding, so the user can see and change it; on X11 it is a direct grab.
+  await htmlapp.shortcut.register({
+    id: 'toggle',
+    accelerator: 'ctrl+space',
+    description: 'Open the command palette',
+  });
+  htmlapp.on('shortcut:trigger', () => $('query').focus());
+
+  render();
+  $('query').focus();
+</script>
+</body>
+</html>

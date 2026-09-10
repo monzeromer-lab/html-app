@@ -1,4 +1,4 @@
-//! The `table` native view (PRD §10).
+//! The `table` native view (docs/bridge.md).
 //!
 //! Why this cannot be HTML: "millions of rows without DOM". A `<table>` with a million rows costs a
 //! million elements; this keeps one row of elements per visible line and indexes into a flat store,
@@ -178,7 +178,7 @@ impl TableView {
     ///
     /// `visible_height` bounds how many rows are built. That is the virtualization: cost is
     /// proportional to the viewport, not to the dataset, which is the whole reason this is not a
-    /// `<table>` (§10).
+    /// `<table>` (docs/bridge.md).
     pub fn element(&self, visible_height: f32) -> AnyElement {
         let capacity = ((visible_height / ROW_HEIGHT).ceil() as usize + 1).min(self.rows.len());
         let first = self.scroll_top.min(self.rows.len().saturating_sub(capacity));

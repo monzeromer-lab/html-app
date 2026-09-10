@@ -1,4 +1,4 @@
-//! The bridge between a document's JavaScript and the host's native capabilities (PRD §9).
+//! The bridge between a document's JavaScript and the host's native capabilities (docs/bridge.md).
 //!
 //! Three message shapes rather than one — request/response, stream, and event — because a
 //! single request/response shape forces every bulk payload into one base64 blob, and tailing a
@@ -7,7 +7,7 @@
 //!
 //! The catalog in [`catalog`] is the single source of truth for the API surface: both the injected
 //! JS shim and the TypeScript declarations emitted by `htmlapp types` are generated from it, so
-//! §9.2's promise of editor completion without a build step stays honest.
+//! The promise of editor completion without a build step stays honest.
 
 #![forbid(unsafe_code)]
 

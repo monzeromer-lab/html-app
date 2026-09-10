@@ -1,4 +1,4 @@
-//! `sql` — bundled SQLite (PRD §9.3 Tier 1).
+//! `sql` — bundled SQLite (docs/api-reference.md, Tier 1).
 //!
 //! Only the databases named in the manifest can be opened. SQLite is synchronous and a `Connection`
 //! is not `Sync`, so connections live on a dedicated blocking thread per database and the async

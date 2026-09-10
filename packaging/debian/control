@@ -1,0 +1,24 @@
+Source: htmlapp
+Section: devel
+Priority: optional
+Maintainer: monzeromer-lab <support@alhakeem.app>
+Build-Depends: debhelper-compat (= 13), cargo, rustc (>= 1.90),
+ libwebkit2gtk-4.1-dev, libgtk-3-dev, libsoup-3.0-dev, libxkbcommon-dev,
+ libwayland-dev, libvulkan-dev, libssl-dev, pkg-config
+Standards-Version: 4.6.2
+Homepage: https://github.com/monzeromer-lab/htmlapp
+
+Package: htmlapp
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ libwebkit2gtk-4.1-0, libgtk-3-0, libvulkan1, libxkbcommon0
+Recommends: xdg-desktop-portal, bubblewrap
+Suggests: libgtk-layer-shell0, appimagetool
+Description: Run a single .hta file as a Linux desktop application
+ HTML App turns one HTML file into a first-class Linux desktop application, with a
+ capability model that makes that safe. No build step, no bundler, no project
+ directory: the input is a file, not a project.
+ .
+ A document with no manifest gets no native APIs at all. Everything else is declared
+ in the document, enforced in Rust, and pinned to the file's content hash, so editing
+ a file asks again.

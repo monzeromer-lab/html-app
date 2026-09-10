@@ -1,4 +1,4 @@
-//! `store` — a persistent key-value store scoped to the app id (PRD §9.3 Tier 1).
+//! `store` — a persistent key-value store scoped to the app id (docs/api-reference.md, Tier 1).
 //!
 //! The 80% case that does not need SQL. Scoped by app id so two documents never share a namespace,
 //! and written atomically so a crash mid-write cannot leave an app's settings truncated.

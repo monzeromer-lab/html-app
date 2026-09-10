@@ -1,4 +1,4 @@
-//! The `terminal` native view (PRD §10).
+//! The `terminal` native view (docs/bridge.md).
 //!
 //! Why this cannot be HTML: "Real PTY, real escape handling, 60fps scrollback." Terminal emulation
 //! is not text rendering — it is a state machine over escape sequences with a scrollback grid, and
@@ -43,7 +43,7 @@ impl Dimensions for TermSize {
 /// Approximate cell metrics, used to translate a pixel rect into a cell grid.
 ///
 /// These are close enough for a monospace face at the default size; the runtime refines them once
-/// the text system has measured the actual font.
+/// The text system has measured the actual font.
 const CELL_WIDTH: f32 = 8.4;
 const CELL_HEIGHT: f32 = 17.0;
 
@@ -267,7 +267,7 @@ impl TerminalView {
     /// Build the element for this terminal.
     ///
     /// A free method rather than a `Render` impl, for the same reason as [`TableView::element`]:
-    /// the host draws the view straight out of its own state.
+    /// The host draws the view straight out of its own state.
     ///
     /// Adjacent cells sharing a colour are merged into one span, so an ordinary line of text costs
     /// one element rather than eighty.

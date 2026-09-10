@@ -1,7 +1,7 @@
-//! `ffi` — load a shared object and call into it (PRD §9.3 Tier 4).
+//! `ffi` — load a shared object and call into it (docs/api-reference.md, Tier 4).
 //!
-//! §9.3 calls this "the loudest permission in the system, off by default, and never granted
-//! implicitly", and §11.3 says it "is exempt from none of this and is documented as the escape
+//! The API catalog calls this "the loudest permission in the system, off by default, and never granted
+//! implicitly", and the threat model says it "is exempt from none of this and is documented as the escape
 //! hatch that voids the model". Both are accurate. A document with `ffi` can do anything the user
 //! can do; the manifest's library list and the consent sheet's `Extreme` badge are the only things
 //! standing between a page and arbitrary native code.
@@ -162,7 +162,7 @@ impl FfiModule {
     ///
     /// SAFETY: there is none to establish. The caller has asserted, via the manifest and the
     /// consent sheet, that this library and this signature are correct. If either is wrong the
-    /// behaviour is undefined. That is what §11.3 means by "the escape hatch that voids the model",
+    /// behaviour is undefined. That is what the threat model means by "the escape hatch that voids the model",
     /// and it is why the consent sheet reports `ffi` as `Extreme` and lists it first.
     fn call_symbol(
         &self,

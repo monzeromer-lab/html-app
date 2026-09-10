@@ -1,4 +1,4 @@
-//! `htmlapp types > htmlapp.d.ts` (PRD §9.2).
+//! `htmlapp types > htmlapp.d.ts` (docs/bridge.md).
 //!
 //! Generated from the same catalog the shim is built from, so completion in the author's editor
 //! describes the runtime they actually get. Single-file authors have no build step and therefore
@@ -219,7 +219,7 @@ export interface XdgPaths {
 export interface BatteryInfo { percentage: number; charging: boolean; secondsRemaining: number | null }
 export interface ThemeInfo { colorScheme: "light" | "dark"; accent: string | null }
 
-/** A native view placed inline in HTML layout (§10). */
+/** A native view placed inline in HTML layout (docs/bridge.md). */
 export interface NativeView {
   readonly id: string;
   write(data: string): Promise<void>;
@@ -228,7 +228,7 @@ export interface NativeView {
   on(event: string, handler: (payload: any) => void): () => void;
 }
 
-/** An async iterable that can also be cancelled explicitly (§9.1). */
+/** An async iterable that can also be cancelled explicitly (docs/bridge.md). */
 export interface HtmlAppStream<T> extends AsyncIterable<T> {
   cancel(): void;
 }
@@ -290,7 +290,7 @@ fn emit_module(out: &mut String, module: &ApiModule) {
 
 /// A typed map of every event name to its payload, so `htmlapp.on` can be overloaded precisely.
 fn emit_event_map(out: &mut String) {
-    out.push_str("\n// --- events (§9.1) ---\n\nexport interface HtmlAppEventMap {\n");
+    out.push_str("\n// --- events (docs/bridge.md) ---\n\nexport interface HtmlAppEventMap {\n");
     for event in catalog::AMBIENT_EVENTS {
         let _ = writeln!(out, "  /** {} */", event.summary);
         let _ = writeln!(out, "  {:?}: {};", event.name, event.payload);
@@ -306,7 +306,7 @@ fn emit_event_map(out: &mut String) {
 
 fn emit_global(out: &mut String) {
     out.push_str(
-        "\n// --- the global (§9.1) ---\n\n\
+        "\n// --- the global (docs/bridge.md) ---\n\n\
          export interface HtmlApp {\n\
         \x20 /** Call a native method and await one result. */\n\
         \x20 invoke<T = unknown>(method: string, params?: unknown): Promise<T>;\n\
@@ -321,7 +321,7 @@ fn emit_global(out: &mut String) {
         \x20 readonly version: string;\n\
         \x20 /** A frozen copy of what this document was granted. */\n\
         \x20 readonly permissions: Readonly<Record<string, unknown>> | null;\n\
-        \x20 /** Address a native view by the id of its <htmlapp-view> element (§10). */\n\
+        \x20 /** Address a native view by the id of its <htmlapp-view> element (docs/bridge.md). */\n\
         \x20 view(id: string): NativeView;\n",
     );
 
@@ -336,7 +336,7 @@ fn emit_global(out: &mut String) {
     }
 
     out.push_str(
-        "\n  // §9.4 — headless mode only.\n\
+        "\n  // Headless mode only.\n\
         \x20 readonly stdin?: { read(): Promise<string>; lines(): HtmlAppStream<string> };\n\
         \x20 readonly stdout?: { write(data: string): Promise<void>; writeLine(data: string): Promise<void> };\n\
         \x20 readonly stderr?: { write(data: string): Promise<void> };\n\

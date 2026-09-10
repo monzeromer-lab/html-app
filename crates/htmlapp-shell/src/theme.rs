@@ -1,4 +1,4 @@
-//! Colours and metrics for the app chrome (PRD §7.2).
+//! Colours and metrics for the app chrome (docs/building.md).
 //!
 //! The launcher "respects the system color scheme and follows the same GPUI theme as the app
 //! chrome, so it reads as part of the desktop rather than as a splash screen."
@@ -89,7 +89,7 @@ impl Theme {
     }
 
     /// A translucent scrim for modal sheets. Modals painting *over* content is the whole point of
-    /// §4.2 G2 — though with the native-child engine backend the page itself still paints last.
+    /// The goals and non-goals, G2 — though with the native-child engine backend the page itself still paints last.
     pub fn scrim(&self) -> Hsla {
         match self.appearance {
             Appearance::Dark => rgba(0x000000b0).into(),
@@ -97,7 +97,7 @@ impl Theme {
         }
     }
 
-    /// Colour for a risk level in the consent sheet (§11.2 rule 3).
+    /// Colour for a risk level in the consent sheet (docs/security.md, rule 3).
     pub fn risk_color(&self, risk: htmlapp_caps::Risk) -> Rgba {
         use htmlapp_caps::Risk;
         match risk {

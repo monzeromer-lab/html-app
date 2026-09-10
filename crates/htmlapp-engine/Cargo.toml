@@ -16,6 +16,14 @@ wpe-backend = []
 # Exposes the engine inspector. Off by default: a document should not ship with devtools
 # reachable unless its author asked for it.
 devtools = ["wry?/devtools"]
+# PRD §8.3 `mode: "layer"` and `mode: "lock"`: bars, docks, widgets, and overlays.
+#
+# Off by default because it needs a system library that is not installed everywhere:
+#     sudo apt install libgtk-layer-shell-dev     # Debian/Ubuntu
+#     sudo dnf install gtk-layer-shell-devel      # Fedora
+#     sudo pacman -S gtk-layer-shell              # Arch
+# Build with `--features htmlapp-engine/layer-shell` once it is present.
+layer-shell = ["dep:gtk-layer-shell", "wry-backend"]
 
 [dependencies]
 htmlapp-caps.workspace = true
@@ -32,6 +40,8 @@ parking_lot.workspace = true
 
 wry = { version = "0.57", optional = true }
 gtk = { version = "0.18", optional = true }
+# Pinned to the same gtk-rs generation wry uses; a mismatch would mean two incompatible GTKs.
+gtk-layer-shell = { version = "0.8", optional = true }
 webkit2gtk-sys = { version = "2.0", optional = true }
 raw-window-handle = { version = "0.6", optional = true }
 x11rb = { version = "0.13", optional = true, features = ["shape"] }

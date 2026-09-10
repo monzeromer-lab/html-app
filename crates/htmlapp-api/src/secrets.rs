@@ -1,4 +1,4 @@
-//! `secrets` — the Secret Service (PRD §9.3 Tier 2).
+//! `secrets` — the Secret Service (docs/api-reference.md, Tier 2).
 //!
 //! "Credentials never touch the page's storage." A secret goes to the user's keyring — GNOME
 //! Keyring, KWallet, or anything else implementing `org.freedesktop.secrets` — and comes back only

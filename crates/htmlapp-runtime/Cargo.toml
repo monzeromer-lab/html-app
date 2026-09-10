@@ -6,6 +6,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+# PRD §8.3 layer-shell window modes. Needs `libgtk-layer-shell-dev`; see htmlapp-engine.
+layer-shell = ["htmlapp-engine/layer-shell"]
+
 [dependencies]
 htmlapp-caps.workspace = true
 htmlapp-bridge.workspace = true
@@ -26,3 +31,10 @@ gpui = "0.2.2"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 # `flock` for the launcher's single-instance guard, without this crate needing `unsafe`.
 rustix = { version = "1", features = ["fs"] }
+toml = "0.9"
+arboard = "3"
+
+[dev-dependencies]
+serde_json.workspace = true
+toml = "0.9"
+htmlapp-caps.workspace = true

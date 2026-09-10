@@ -1,4 +1,4 @@
-//! `serial` — serial ports (PRD §9.3 Tier 4).
+//! `serial` — serial ports (docs/api-reference.md, Tier 4).
 //!
 //! "Turns HTML App into a viable host for hardware and embedded tooling" — UC7. The manifest's
 //! `serial` list names the ports a document may open; an empty list grants none, because a serial

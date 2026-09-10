@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<!--
+  UC7 — a serial device console for embedded work.
+
+  Exercises: serial (list, open, read as a stream, write), store.
+
+  The manifest names which ports this document may open. `/dev/ttyUSB*` is a glob
+  because which number a USB adapter gets is not stable across reboots — but it is
+  still a named set, not "any device on the machine".
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "Serial Console",
+  "id": "dev.htmlapp.serialconsole",
+  "version": "1.0.0",
+  "window": { "title": "Serial Console", "width": 900, "height": 640 },
+  "permissions": {
+    "serial": ["/dev/ttyUSB*", "/dev/ttyACM*"],
+    "store":  true
+  }
+}
+</script>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font: 13px/1.5 system-ui, sans-serif; margin: 0; height: 100vh;
+         display: flex; flex-direction: column; background: #14161a; color: #e6e8ec; }
+  .bar { display: flex; gap: .5rem; align-items: center; padding: .6rem .8rem;
+         border-bottom: 1px solid #ffffff1f; }
+  select, input, button { font: inherit; padding: .3rem .55rem; border-radius: 6px;
+    border: 1px solid #ffffff2b; background: #ffffff0d; color: inherit; }
+  button { cursor: pointer; }
+  button:hover { background: #ffffff1a; }
+  button.primary { background: #2563eb; border-color: #2563eb; }
+  button:disabled { opacity: .45; cursor: default; }
+  #out { flex: 1; overflow: auto; padding: .6rem .8rem; white-space: pre-wrap;
+         font: 12px/1.5 ui-monospace, monospace; }
+  .tx { color: #61afef; }
+  .sys { color: #98c379; }
+  .err { color: #e06c75; }
+  .send { display: flex; gap: .5rem; padding: .6rem .8rem; border-top: 1px solid #ffffff1f; }
+  .send input { flex: 1; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <select id="port"><option value="">No ports found</option></select>
+    <select id="baud">
+      <option>9600</option><option>19200</option><option>38400</option>
+      <option>57600</option><option selected>115200</option><option>230400</option>
+    </select>
+    <button id="refresh">Refresh</button>
+    <button class="primary" id="connect">Connect</button>
+    <label style="display:flex;gap:.3rem;align-items:center;opacity:.8">
+      <input type="checkbox" id="crlf" checked style="width:auto"> CRLF
+    </label>
+    <button id="clear">Clear</button>
+  </div>
+
+  <div id="out"></div>
+
+  <form class="send">
+    <input id="line" placeholder="Type a line and press Enter…" autocomplete="off" disabled>
+    <button id="send" disabled>Send</button>
+  </form>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const out = $('out');
+  let handle = null, reader = null;
+
+  const MAX_NODES = 2000;   // Bounded, so a chatty device cannot grow the DOM without limit.
+
+  function write(text, cls = '') {
+    const line = document.createElement('span');
+    if (cls) line.className = cls;
+    line.textContent = text;
+    out.append(line);
+    while (out.childNodes.length > MAX_NODES) out.firstChild.remove();
+    out.scrollTop = out.scrollHeight;
+  }
+
+  async function refresh() {
+    // Only ports covered by the manifest are listed: enumeration is not a way to
+    // discover what else is plugged in.
+    const ports = await htmlapp.serial.list();
+    $('port').replaceChildren(
+      ...(ports.length
+        ? ports.map(p => {
+            const option = document.createElement('option');
+            option.value = p.port;
+            option.textContent = p.product ? `${p.port} — ${p.product}` : p.port;
+            return option;
+          })
+        : [Object.assign(document.createElement('option'), {
+            value: '', textContent: 'No permitted ports found',
+          })])
+    );
+
+    const remembered = await htmlapp.store.get({ key: 'port' });
+    if (remembered && ports.some(p => p.port === remembered)) $('port').value = remembered;
+  }
+
+  async function connect() {
+    if (handle !== null) return disconnect();
+
+    const port = $('port').value;
+    if (!port) return;
+
+    try {
+      handle = await htmlapp.serial.open({
+        port,
+        baudRate: Number($('baud').value),
+      });
+    } catch (e) {
+      write(`\n${e.code}: ${e.message}\n`, 'err');
+      return;
+    }
+
+    await htmlapp.store.set({ key: 'port', value: port });
+    write(`\n— connected to ${port} at ${$('baud').value} baud —\n`, 'sys');
+
+    $('connect').textContent = 'Disconnect';
+    $('line').disabled = $('send').disabled = false;
+    $('line').focus();
+
+    // One reader per open port. Breaking out of this loop releases it.
+    reader = htmlapp.serial.read({ handle });
+    try {
+      for await (const chunk of reader) write(chunk);
+    } catch (e) {
+      write(`\n${e.code}: ${e.message}\n`, 'err');
+    }
+  }
+
+  async function disconnect() {
+    reader?.cancel();
+    if (handle !== null) await htmlapp.serial.close({ handle });
+    handle = null;
+    reader = null;
+    write('\n— disconnected —\n', 'sys');
+    $('connect').textContent = 'Connect';
+    $('line').disabled = $('send').disabled = true;
+  }
+
+  document.querySelector('.send').onsubmit = async event => {
+    event.preventDefault();
+    if (handle === null) return;
+    const data = $('line').value + ($('crlf').checked ? '\r\n' : '\n');
+    await htmlapp.serial.write({ handle, data });
+    write(`> ${$('line').value}\n`, 'tx');
+    $('line').value = '';
+  };
+
+  $('refresh').onclick = refresh;
+  $('connect').onclick = connect;
+  $('clear').onclick = () => out.replaceChildren();
+
+  await refresh();
+</script>
+</body>
+</html>

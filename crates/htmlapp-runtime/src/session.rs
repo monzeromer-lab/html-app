@@ -1,4 +1,4 @@
-//! Preparing one document to run (PRD §8, §11.2).
+//! Preparing one document to run (docs/document-format.md and docs/security.md).
 //!
 //! Everything here happens before a window exists, and none of it needs one: load the file, read
 //! its manifest, resolve consent, resolve pinned imports, inject the CSP, and build the shim. That
@@ -38,7 +38,7 @@ pub type Result<T> = std::result::Result<T, SessionError>;
 /// How a document's permissions were settled before it ran.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConsentOutcome {
-    /// Nothing was requested (§11.2 rule 1).
+    /// Nothing was requested (docs/security.md, rule 1).
     NotRequired,
     /// A stored, hash-pinned grant applied.
     Remembered,
@@ -54,14 +54,18 @@ pub enum ConsentOutcome {
 /// Options that change how a document is brought up.
 #[derive(Debug, Clone, Default)]
 pub struct SessionOptions {
-    /// Run with no surface (§9.4).
+    /// Run with no surface (docs/bridge.md).
     pub headless: bool,
     /// Make the engine inspector reachable.
     pub devtools: bool,
-    /// §17 open question 8: suppress recents for this run.
+    /// The open questions, open question 8: suppress recents for this run.
     pub private: bool,
     /// Skip the consent sheet and run powerless. Used by `--no-permissions`.
     pub force_powerless: bool,
+    /// Headless mode's `--format`, passed to the page as `htmlapp.format`.
+    pub format: Option<String>,
+    /// The security model, rule 7: re-exec under bubblewrap before doing anything else.
+    pub sandbox: bool,
 }
 
 /// A document that has been read and had its permissions settled.
@@ -71,11 +75,11 @@ pub struct Session {
     /// What the document will actually be allowed to do — `None` means powerless.
     pub granted: Option<Permissions>,
     pub consent: ConsentOutcome,
-    /// Resolved import-map entries (§8.5).
+    /// Resolved import-map entries (docs/document-format.md).
     pub module_urls: Vec<(String, String)>,
     pub module_root: Option<PathBuf>,
     /// Shared between the `fs` module, which mints blob tokens, and the origin resolver, which
-    /// serves them (§9.1).
+    /// serves them (docs/bridge.md).
     pub blobs: htmlapp_bridge::BlobStore,
 }
 
@@ -86,7 +90,7 @@ impl Session {
         Self::prepare(document, options, &ConsentStore::load_default()?)
     }
 
-    /// Same, for a document already in memory — a stapled binary (§13) or stdin.
+    /// Same, for a document already in memory — a stapled binary (docs/building.md) or stdin.
     pub fn from_document(document: Document, options: SessionOptions) -> Result<Self> {
         Self::prepare(document, options, &ConsentStore::load_default()?)
     }
@@ -119,7 +123,7 @@ impl Session {
         };
 
         // Imports are resolved regardless of consent: they are page content, not a capability, and
-        // the integrity pin is what governs them (§8.5).
+        // The integrity pin is what governs them (docs/document-format.md).
         let (module_urls, module_root) = resolve_imports(&document)?;
 
         Ok(Self {
@@ -202,11 +206,10 @@ impl Session {
     /// Everything the engine needs to bring the document up.
     pub fn engine_config(&self) -> EngineConfig {
         let headless = self.window_mode() == WindowMode::Headless;
-        let shim = htmlapp_bridge::render_shim(&ShimConfig::for_permissions(
-            VERSION,
-            self.granted.as_ref(),
-            headless,
-        ));
+        let shim = htmlapp_bridge::render_shim(
+            &ShimConfig::for_permissions(VERSION, self.granted.as_ref(), headless)
+                .with_format(self.options.format.clone()),
+        );
 
         EngineConfig {
             index_html: origin::prepare_document(&self.document, &self.module_urls),
@@ -240,7 +243,7 @@ impl Session {
         )
     }
 
-    /// Record this run in the launcher's recents, unless `--private` (§17 open question 8).
+    /// Record this run in the launcher's recents, unless `--private` (the open questions, open question 8).
     pub fn record_recent(&self) {
         if self.options.private {
             return;

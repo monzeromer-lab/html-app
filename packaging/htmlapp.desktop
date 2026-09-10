@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=HTML App
+GenericName=HTML Application Runtime
+Comment=Run a single .hta file as a desktop application
+Exec=htmlapp %f
+Icon=htmlapp
+Terminal=false
+Categories=Development;Utility;
+MimeType=application/hta;application/x-hta;
+StartupWMClass=htmlapp
+Actions=OpenFile;Permissions;
+
+[Desktop Action OpenFile]
+Name=Open an .hta file…
+Exec=htmlapp --open
+
+[Desktop Action Permissions]
+Name=Manage permissions
+Exec=htmlapp --permissions-ui

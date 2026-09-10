@@ -1,10 +1,10 @@
-//! The launcher window (PRD §7.2).
+//! The launcher window (docs/building.md).
 //!
-//! A native GPUI window with no webview in it at all. §7.2 calls that "a deliberate side benefit":
+//! A native GPUI window with no webview in it at all. The launcher calls that "a deliberate side benefit":
 //! it exercises the shell, theming, dialog, and drag-and-drop layers independently of the engine,
 //! so it ships before the engine is wired up and it keeps working if the engine fails to start.
 //!
-//! §7.1 is equally load-bearing: launching with no document is a *normal* launch, not a usage
+//! The launch modes is equally load-bearing: launching with no document is a *normal* launch, not a usage
 //! error. That is why this window exists rather than a `--help` dump.
 
 use std::path::{Path, PathBuf};
@@ -39,7 +39,7 @@ actions!(
     ]
 );
 
-/// §7.2's keyboard contract.
+/// The launcher's keyboard contract.
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("ctrl-o", OpenFile, None),
@@ -53,10 +53,10 @@ pub fn bind_keys(cx: &mut App) {
 
 /// What the launcher needs the runtime to do for it.
 ///
-/// The launcher never runs a document itself: §7.4 requires each document to get its own process,
+/// The launcher never runs a document itself: the process and instance model requires each document to get its own process,
 /// so "open" means "spawn a detached child", which is the runtime's business rather than the UI's.
 pub trait LauncherDelegate: Send + Sync + 'static {
-    /// Spawn a document in its own process. The launcher stays up (§7.4).
+    /// Spawn a document in its own process. The launcher stays up (docs/architecture.md).
     fn open_document(&self, path: &Path);
     /// Show the portal file chooser and open whatever comes back.
     fn choose_document(&self);
@@ -68,18 +68,18 @@ pub trait LauncherDelegate: Send + Sync + 'static {
     fn copy_to_clipboard(&self, text: &str);
     /// Reveal a path in the user's file manager.
     fn reveal(&self, path: &Path);
-    /// Open a URL in the user's browser — the identity links in §7.2.
+    /// Open a URL in the user's browser — the identity links in the launcher.
     fn open_url(&self, url: &str);
-    /// Forget every stored permission decision for a document (§11.2 rule 6).
+    /// Forget every stored permission decision for a document (docs/security.md, rule 6).
     fn revoke_permissions(&self, path: &Path);
 }
 
-/// Where the identity links in §7.2 point.
+/// Where the identity links in the launcher point.
 pub const REPOSITORY_URL: &str = "https://github.com/monzeromer-lab/htmlapp";
 pub const DOCS_URL: &str = "https://github.com/monzeromer-lab/htmlapp/tree/main/docs";
 pub const LICENSE_URL: &str = "https://www.apache.org/licenses/LICENSE-2.0";
 
-/// One line of the diagnostics strip (§7.2).
+/// One line of the diagnostics strip (docs/building.md).
 #[derive(Debug, Clone)]
 pub struct Diagnostics {
     pub session_type: String,
@@ -118,7 +118,7 @@ pub struct Example {
     pub path: PathBuf,
 }
 
-/// Where §7.2 says the bundled examples live, plus the locations a development or user-local
+/// Where the launcher says the bundled examples live, plus the locations a development or user-local
 /// install actually puts them.
 pub fn example_directories() -> Vec<PathBuf> {
     let mut dirs = vec![PathBuf::from("/usr/share/htmlapp/examples")];
@@ -325,7 +325,7 @@ impl Render for Launcher {
             .on_action(cx.listener(Self::select_next))
             .on_action(cx.listener(Self::select_previous))
             .on_action(cx.listener(Self::copy_diagnostics))
-            // §7.2: "The entire window accepts a dragged .hta."
+            // The launcher: "The entire window accepts a dragged .hta."
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _window, cx| {
                 for path in paths.paths() {
                     if path.extension().and_then(|e| e.to_str()) == Some("hta") {
@@ -362,7 +362,7 @@ impl Render for Launcher {
 }
 
 impl Launcher {
-    /// Identity and the primary action (§7.2).
+    /// Identity and the primary action (docs/building.md).
     fn render_header(
         &self,
         theme: &Theme,
@@ -461,7 +461,7 @@ impl Launcher {
             )
     }
 
-    /// The recents list: name, path, when, and what it was granted (§7.2).
+    /// The recents list: name, path, when, and what it was granted (docs/building.md).
     fn render_recents(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *theme;
         let recents = self.live_recents();
@@ -592,7 +592,7 @@ impl Launcher {
             .child(list)
     }
 
-    /// The bundled examples. §7.2: "These are the tutorial; there is no other onboarding."
+    /// The bundled examples. The launcher: "These are the tutorial; there is no other onboarding."
     fn render_examples(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *theme;
 
@@ -663,7 +663,7 @@ impl Launcher {
             .child(list)
     }
 
-    /// The recents context menu §7.2 asks for.
+    /// The recents context menu the launcher asks for.
     fn render_context_menu(
         &self,
         theme: &Theme,
@@ -757,7 +757,7 @@ impl Launcher {
         )
     }
 
-    /// §7.2's diagnostics strip, copyable as one block.
+    /// The launcher's diagnostics strip, copyable as one block.
     fn render_diagnostics(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *theme;
         let delegate = Arc::clone(&self.delegate);
@@ -869,7 +869,7 @@ fn secondary_button(
 }
 
 
-/// One of the identity links in §7.2.
+/// One of the identity links in the launcher.
 fn link(
     id: &'static str,
     label: &'static str,

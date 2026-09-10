@@ -1,10 +1,10 @@
-//! Locating the manifest inside a `.hta` file (PRD §8.1).
+//! Locating the manifest inside a `.hta` file (docs/document-format.md).
 //!
 //! The host reads the manifest *before* the document reaches the engine, so this is a small
 //! purpose-built scanner rather than a full HTML parse: pulling in an HTML tree builder to find one
 //! `<script>` block would mean the security decision depended on a parser the engine never sees.
 //! The scanner is deliberately conservative — anything it cannot read confidently is treated as
-//! "no manifest", which §11.2 makes the safe outcome.
+//! "no manifest", which the security model makes the safe outcome.
 
 use std::path::{Path, PathBuf};
 
@@ -24,7 +24,7 @@ pub struct Document {
     pub manifest: Manifest,
     /// Whether a manifest block was actually present, as opposed to defaulted.
     pub has_manifest: bool,
-    /// `sha256(file bytes)` — the key that consent is pinned to (§11.2 rule 3).
+    /// `sha256(file bytes)` — the key that consent is pinned to (docs/security.md, rule 3).
     pub hash: String,
 }
 
@@ -41,7 +41,7 @@ impl Document {
         Ok(document)
     }
 
-    /// Parse a `.hta` already in memory — used for stapled binaries (§13) and stdin.
+    /// Parse a `.hta` already in memory — used for stapled binaries (docs/building.md) and stdin.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let hash = hex::encode(Sha256::digest(bytes));
         let html = String::from_utf8_lossy(bytes).into_owned();
@@ -58,7 +58,7 @@ impl Document {
         })
     }
 
-    /// The directory sibling assets resolve against (§8.4), if the policy allows any.
+    /// The directory sibling assets resolve against (docs/document-format.md), if the policy allows any.
     pub fn asset_root(&self) -> Option<PathBuf> {
         use crate::manifest::AssetPolicy;
         match self.manifest.assets {
@@ -185,7 +185,7 @@ fn attribute_equals(attributes: &str, name: &str, expected: &str) -> bool {
     false
 }
 
-/// `sha256` of arbitrary bytes, hex-encoded. The consent key (§11.2 rule 3).
+/// `sha256` of arbitrary bytes, hex-encoded. The consent key (docs/security.md, rule 3).
 pub fn hash_bytes(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }

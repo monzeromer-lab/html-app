@@ -1,11 +1,11 @@
-//! Keeping the launcher single-instance (PRD §7.4).
+//! Keeping the launcher single-instance (docs/architecture.md).
 //!
 //! "The launcher is single-instance. Opening a file from it spawns a detached child; the launcher
 //! stays up." Documents are the opposite — every one gets its own process — so this guard is only
 //! ever applied to the launcher.
 //!
 //! An advisory `flock` on a file in the runtime directory. The lock is released by the kernel when
-//! the process exits, however it exits, so a crashed launcher leaves nothing to clean up — which a
+//! The process exits, however it exits, so a crashed launcher leaves nothing to clean up — which a
 //! pid file would not manage.
 
 use std::fs::File;

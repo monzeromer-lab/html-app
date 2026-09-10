@@ -4,7 +4,7 @@
 //!
 //! `wry` takes the host window's `RawWindowHandle::Xlib` id, creates an X11 child window inside it
 //! with `XCreateSimpleWindow`, wraps that in a foreign `GdkWindow`, and builds a WebKitGTK view in
-//! the resulting GTK container. Three consequences follow from that, and all three are load-bearing
+//! The resulting GTK container. Three consequences follow from that, and all three are load-bearing
 //! for the rest of the runtime:
 //!
 //! 1. **The host window must be X11.** A `RawWindowHandle::Wayland` is rejected outright. On a
@@ -18,8 +18,8 @@
 //! # What this backend cannot do
 //!
 //! It is a native child surface, so it paints *above* everything GPUI draws into the same window
-//! and is not clipped by the parent's rounding or overflow. That is exactly the limitation §6.1
-//! sets out to remove, and removing it is what the WPE offscreen path in §6.3 is for. The
+//! and is not clipped by the parent's rounding or overflow. That is exactly the limitation the rendering design
+//! sets out to remove, and removing it is what the WPE offscreen path in the render pipeline is for. The
 //! [`WebEngine`](crate::WebEngine) trait exists so that swap is an addition rather than a rewrite.
 
 use std::borrow::Cow;
@@ -103,7 +103,7 @@ pub fn pump_events() {
 /// A WebKitGTK view embedded in the host window.
 pub struct WryEngine {
     webview: wry::WebView,
-    /// Shapes the page's child window so the host can paint over it (§4.2 G2).
+    /// Shapes the page's child window so the host can paint over it (docs/architecture.md, G2).
     ///
     /// `RefCell` rather than a lock: the engine has main-thread affinity and is only ever reached
     /// from the frame loop, so there is no contention to guard against.
@@ -141,7 +141,7 @@ impl WryEngine {
             .with_transparent(config.transparent)
             .with_devtools(config.devtools)
             .with_bounds(to_wry_rect(bounds))
-            // §9.1: injected at document-start, before any page script runs.
+            // The bridge transport: injected at document-start, before any page script runs.
             .with_initialization_script(&config.init_script)
             .with_custom_protocol(origin::SCHEME.to_string(), move |_id, request| {
                 serve(&resolver, &request)
@@ -149,7 +149,7 @@ impl WryEngine {
             .with_ipc_handler(move |request: Request<String>| {
                 ipc_event(EngineEvent::Ipc(request.into_body()));
             })
-            // §4.2 N2 and §11.2 rule 8: this is not a browser.
+            // The goals and non-goals, N2 and the security model, rule 8: this is not a browser.
             .with_navigation_handler(move |url: String| {
                 let allowed = origin::allows_navigation(&url, &navigation_manifest);
                 if !allowed {
@@ -158,8 +158,8 @@ impl WryEngine {
                 }
                 allowed
             })
-            // §9.3 `dnd`: dropping files onto a tool is the common case, and the drop lands on
-            // the page's own child window rather than on the host's.
+            // The API catalog `dnd`: dropping files onto a tool is the common case, and the drop lands on
+            // The page's own child window rather than on the host's.
             .with_drag_drop_handler({
                 let on_event = Arc::clone(&callbacks.on_event);
                 move |event: wry::DragDropEvent| {
@@ -215,7 +215,7 @@ impl WryEngine {
 /// Presents a bare X11 window id to `wry` as a `RawWindowHandle`.
 ///
 /// GPUI will not hand out its own handle (see [`crate::x11_window`]), so the id is recovered from
-/// the X server and re-wrapped here. `wry` matches specifically on `RawWindowHandle::Xlib`, while
+/// The X server and re-wrapped here. `wry` matches specifically on `RawWindowHandle::Xlib`, while
 /// GPUI's internal handle is an XCB one — the distinction is only which client library is used to
 /// talk to the server. The window id itself is the same XID either way.
 struct ForeignX11Window(std::ffi::c_ulong);
@@ -259,7 +259,7 @@ impl WryEngine {
 }
 
 impl WryEngine {
-    /// Build a view with no visible surface, for headless mode (§9.4).
+    /// Build a view with no visible surface, for headless mode (docs/bridge.md).
     ///
     /// This path does not embed into anything, so it does not need X11: the view goes into an
     /// ordinary GTK window that is never shown, which works just as well on Wayland. That matters
@@ -311,7 +311,7 @@ impl WryEngine {
 }
 
 /// Turn a wry build error into something a user can act on.
-fn describe_build_failure(error: &wry::Error) -> String {
+pub(crate) fn describe_build_failure(error: &wry::Error) -> String {
     let base = error.to_string();
     if matches!(error, wry::Error::UnsupportedWindowHandle) {
         format!(
@@ -324,7 +324,7 @@ fn describe_build_failure(error: &wry::Error) -> String {
 }
 
 /// Serve one `htmlapp://app/...` request.
-fn serve(resolver: &OriginResolver, request: &Request<Vec<u8>>) -> HttpResponse<Cow<'static, [u8]>> {
+pub(crate) fn serve(resolver: &OriginResolver, request: &Request<Vec<u8>>) -> HttpResponse<Cow<'static, [u8]>> {
     let path = request.uri().path().to_string();
 
     match resolver.resolve(&path) {
@@ -377,7 +377,7 @@ impl WebEngine for WryEngine {
             .map_err(|e| EngineError::Script(e.to_string()))
     }
 
-    /// §4.2 G2: let the host paint over the page.
+    /// The goals and non-goals, G2: let the host paint over the page.
     fn set_occlusions(&self, rects: &[ViewRect]) -> Result<bool> {
         let parent = self.parent.get();
         if parent == 0 {

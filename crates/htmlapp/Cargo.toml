@@ -11,6 +11,11 @@ default-run = "htmlapp"
 name = "htmlapp"
 path = "src/main.rs"
 
+[features]
+default = []
+# PRD §8.3 layer-shell window modes. Needs `libgtk-layer-shell-dev` at build time.
+layer-shell = ["htmlapp-runtime/layer-shell"]
+
 [dependencies]
 htmlapp-caps.workspace = true
 htmlapp-bridge.workspace = true

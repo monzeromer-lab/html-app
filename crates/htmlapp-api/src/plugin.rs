@@ -1,6 +1,6 @@
-//! `plugin` — a wasmtime host for third-party extensions (PRD §9.3 Tier 4).
+//! `plugin` — a wasmtime host for third-party extensions (docs/api-reference.md, Tier 4).
 //!
-//! §9.3 calls this "the recommended alternative to `ffi` for anything redistributable", and the
+//! The API catalog calls this "the recommended alternative to `ffi` for anything redistributable", and the
 //! reason is the sandbox: a WebAssembly module cannot reach the filesystem, the network, or the
 //! host's memory except through what it is explicitly given. Loading someone else's `.wasm` is a
 //! bounded act in a way that `dlopen`ing their `.so` is not.

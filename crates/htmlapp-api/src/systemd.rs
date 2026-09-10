@@ -1,4 +1,4 @@
-//! `systemd` — journal reading and user unit control (PRD §9.3 Tier 2).
+//! `systemd` — journal reading and user unit control (docs/api-reference.md, Tier 2).
 //!
 //! Unit control goes over D-Bus to the *user* manager, not the system one: a document should be
 //! able to restart its own services without becoming a way to stop `sshd`.

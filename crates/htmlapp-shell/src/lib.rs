@@ -1,4 +1,4 @@
-//! The GPUI chrome: launcher, titlebar, consent sheet, menus, and dialogs (PRD §7.2, §11.2).
+//! The GPUI chrome: launcher, titlebar, consent sheet, menus, and dialogs (docs/building.md and docs/security.md).
 
 #![forbid(unsafe_code)]
 

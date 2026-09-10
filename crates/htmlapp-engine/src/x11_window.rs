@@ -19,7 +19,7 @@
 //!
 //! This is a workaround for a gap in one dependency version, not a design choice. Implementing
 //! `HasWindowHandle` for `X11Window` upstream would delete this file, and the offscreen backend in
-//! PRD §6.3 would delete the need for it entirely.
+//! The render pipeline would delete the need for it entirely.
 
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
@@ -59,7 +59,7 @@ impl WindowFinder {
 
     /// One non-blocking pass. Returns `None` if the window is not visible to the X server yet.
     ///
-    /// A document runs in its own process (§7.4) and has exactly one window, so matching on pid is
+    /// A document runs in its own process (docs/architecture.md) and has exactly one window, so matching on pid is
     /// unambiguous. `expected_title` only disambiguates if that ever stops being true.
     pub fn try_find(&self, expected_title: Option<&str>) -> Option<u32> {
         // The window manager's client list is the cheap path and covers every mapped toplevel.
@@ -161,10 +161,10 @@ fn title_of(connection: &impl Connection, window: xproto::Window) -> Option<Stri
     String::from_utf8(reply.value).ok()
 }
 
-/// Set `_NET_WM_WINDOW_OPACITY` on a window (§9.3 `window.setOpacity`).
+/// Set `_NET_WM_WINDOW_OPACITY` on a window (the API catalog `window.setOpacity`).
 ///
 /// GPUI exposes no window-opacity API. Every Linux toolkit implements this by setting the property
-/// the compositor reads, which is what this does — so it works wherever a compositing WM is running
+/// The compositor reads, which is what this does — so it works wherever a compositing WM is running
 /// and is a no-op where one is not.
 pub fn set_window_opacity(window: u32, opacity: f32) {
     let Ok((connection, _)) = x11rb::connect(None) else {
@@ -185,7 +185,7 @@ pub fn set_window_opacity(window: u32, opacity: f32) {
     let _ = connection.flush();
 }
 
-/// Restrict where a window accepts input (§9.3 `window.setInputRegion`).
+/// Restrict where a window accepts input (the API catalog `window.setInputRegion`).
 ///
 /// `None` restores the whole window. Anything else makes every pixel outside the given rectangles
 /// click-through, which is what a desktop widget or an overlay bar wants: visible, but not in the

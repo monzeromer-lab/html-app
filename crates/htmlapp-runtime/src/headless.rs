@@ -1,4 +1,4 @@
-//! Headless mode (PRD §9.4).
+//! Headless mode (docs/bridge.md).
 //!
 //! ```sh
 //! cat access.log | htmlapp report.hta --headless --format json > summary.json
@@ -20,7 +20,7 @@ use crate::transport::QueueTransport;
 /// Run a document with no surface, returning its exit code.
 pub fn run(session: Session, runtime: &tokio::runtime::Runtime) -> Result<i32> {
     // A headless document still runs page script, so a pending consent decision is still a
-    // decision. There is no window to attach a sheet to, so the safe default applies (§11.2 rule 1)
+    // decision. There is no window to attach a sheet to, so the safe default applies (docs/security.md, rule 1)
     // and the user is told how to grant it deliberately.
     let session = if session.needs_prompt() {
         eprintln!(

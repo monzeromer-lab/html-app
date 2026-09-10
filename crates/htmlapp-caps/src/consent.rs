@@ -1,8 +1,8 @@
-//! Hash-pinned consent (PRD §11.2 rules 3 and 6).
+//! Hash-pinned consent (the security model rules 3 and 6).
 //!
 //! A decision is stored against `sha256(file)`, not against the path. Editing the file invalidates
-//! the grant and re-prompts, and the prompt shows a diff of what changed in the permission set —
-//! which is the mitigation for the "trojan update to a trusted file" threat in §11.3.
+//! The grant and re-prompts, and the prompt shows a diff of what changed in the permission set —
+//! which is the mitigation for the "trojan update to a trusted file" threat in the threat model.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -27,7 +27,7 @@ fn now() -> Timestamp {
 /// What the runtime should do with a document whose manifest requests capabilities.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConsentDecision {
-    /// Nothing was requested. §11.2 rule 1 — run it, silently, with no native APIs.
+    /// Nothing was requested. The security model, rule 1 — run it, silently, with no native APIs.
     NotRequired,
     /// This exact file content was approved before. Run it.
     AlreadyGranted(Box<ConsentRecord>),
@@ -61,7 +61,7 @@ pub struct ConsentRecord {
     pub last_used: Option<Timestamp>,
 }
 
-/// What changed between two versions of a document's permission set (§11.2 rule 3).
+/// What changed between two versions of a document's permission set (docs/security.md, rule 3).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermissionDiff {
     /// Modules present now that were not granted before. These are what the user must weigh.
@@ -240,7 +240,7 @@ impl ConsentStore {
 
         if let Some(record) = self.find(hash) {
             // Defence in depth: if the stored permissions no longer match what the file asks for,
-            // the hash match was not meaningful and the user is asked again.
+            // The hash match was not meaningful and the user is asked again.
             if &record.permissions == requested {
                 return if record.granted {
                     ConsentDecision::AlreadyGranted(Box::new(record.clone()))

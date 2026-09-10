@@ -1,4 +1,4 @@
-//! The enforcement half of PRD §11.
+//! The enforcement half of the security model.
 
 use std::fs;
 use std::path::Path;
@@ -6,7 +6,7 @@ use std::path::Path;
 use htmlapp_caps::consent::ConsentDecision;
 use htmlapp_caps::{ConsentStore, Manifest, PathScope, PermissionDiff, Permissions, Risk};
 
-// --- §11.2 rule 5: path scoping with symlink resolution ---
+// --- the security model, rule 5: path scoping with symlink resolution ---
 
 /// The escape the PRD names explicitly: "`~/logs/link-to-etc` cannot escape".
 #[test]
@@ -77,7 +77,7 @@ fn nonexistent_write_target_is_checked_through_existing_symlinks() {
     assert!(!scope.allows(data.join("out").join("new-file.txt")));
 }
 
-/// §11.2 rule 1, at the enforcement layer: an empty scope grants nothing.
+/// The security model, rule 1, at the enforcement layer: an empty scope grants nothing.
 #[test]
 fn empty_scope_denies_everything() {
     let scope = PathScope::empty();
@@ -95,7 +95,7 @@ fn scope_matches_the_prd_glob_shapes() {
     assert!(!scope.allows("/var/log/syslog"));
 }
 
-// --- §11.3: exfiltration via `http` ---
+// --- the threat model: exfiltration via `http` ---
 
 /// "Origin allow-list; no wildcard `*` accepted."
 #[test]
@@ -115,7 +115,7 @@ fn specific_origins_are_accepted() {
     assert!(Manifest::from_json(json).is_ok());
 }
 
-// --- §9.3: ungranted modules are absent, not merely disabled ---
+// --- the API catalog: ungranted modules are absent, not merely disabled ---
 
 #[test]
 fn ungranted_modules_are_absent() {
@@ -127,7 +127,7 @@ fn ungranted_modules_are_absent() {
     );
 }
 
-// --- §11.2 rule 3: hash-pinned consent ---
+// --- the security model, rule 3: hash-pinned consent ---
 
 #[test]
 fn consent_is_pinned_to_content_and_reprompts_on_edit() {
@@ -150,7 +150,7 @@ fn consent_is_pinned_to_content_and_reprompts_on_edit() {
         ConsentDecision::AlreadyGranted(_)
     ));
 
-    // The file is edited to ask for more. §11.3 "trojan update to a trusted file".
+    // The file is edited to ask for more. The threat model "trojan update to a trusted file".
     let escalated: Permissions =
         serde_json::from_str(r#"{"fs":{"read":["~/logs/**"]},"process":{"exec":["sh"]}}"#).unwrap();
     match store.decide("hash-v2", Some(path), Some(&escalated)) {
@@ -179,7 +179,7 @@ fn stored_record_cannot_widen_a_grant() {
     ));
 }
 
-/// §11.2 rule 1: nothing requested means nothing to consent to.
+/// The security model, rule 1: nothing requested means nothing to consent to.
 #[test]
 fn powerless_document_needs_no_consent() {
     let store = ConsentStore::default();
@@ -193,7 +193,7 @@ fn powerless_document_needs_no_consent() {
     );
 }
 
-/// §11.2 rule 6: revocable.
+/// The security model, rule 6: revocable.
 #[test]
 fn consent_is_revocable() {
     let mut store = ConsentStore::default();
@@ -237,7 +237,7 @@ fn consent_store_round_trips_through_disk() {
     );
 }
 
-// --- the consent sheet's plain-language copy (§11.2 rule 3) ---
+// --- the consent sheet's plain-language copy (docs/security.md, rule 3) ---
 
 #[test]
 fn unrestricted_exec_and_ffi_are_flagged_as_extreme() {
@@ -245,7 +245,7 @@ fn unrestricted_exec_and_ffi_are_flagged_as_extreme() {
         serde_json::from_str(r#"{"process":{"exec":[]},"ffi":["libc.so.6"]}"#).unwrap();
     let described = permissions.describe();
 
-    // §9.3: ffi is "the loudest permission in the system" — it must lead.
+    // The API catalog: ffi is "the loudest permission in the system" — it must lead.
     assert_eq!(described[0].module, "ffi");
     assert_eq!(described[0].risk, Risk::Extreme);
     // An empty exec allow-list means *any* program, which is not a mild grant.

@@ -1,4 +1,4 @@
-//! The bridge's transport, gating, and codegen (PRD §9).
+//! The bridge's transport, gating, and codegen (docs/bridge.md).
 
 use std::sync::Arc;
 
@@ -72,7 +72,7 @@ fn dispatcher(granted: Option<Permissions>) -> (Arc<Dispatcher>, Arc<Recorder>) 
     (Arc::new(dispatcher), recorder)
 }
 
-// --- §9.1 transport ---
+// --- the bridge transport ---
 
 #[tokio::test]
 async fn invoke_round_trips() {
@@ -94,7 +94,7 @@ async fn invoke_round_trips() {
     }
 }
 
-/// §9.1: "Streaming is not optional."
+/// The bridge transport: "Streaming is not optional."
 #[tokio::test]
 async fn stream_yields_chunks_then_ends() {
     let (dispatcher, recorder) = dispatcher(Some(permissions(r#"{"fs":{"read":["/**"]}}"#)));
@@ -125,7 +125,7 @@ async fn stream_yields_chunks_then_ends() {
     );
 }
 
-// --- §11.2 rule 2: nothing in JS can widen the grant ---
+// --- the security model, rule 2: nothing in JS can widen the grant ---
 
 /// The central gating test: the handler is registered, but the manifest did not grant it.
 #[tokio::test]
@@ -148,7 +148,7 @@ async fn ungranted_module_is_refused_even_though_the_handler_exists() {
     }
 }
 
-/// §11.2 rule 1: a document with no manifest reaches nothing.
+/// The security model, rule 1: a document with no manifest reaches nothing.
 #[tokio::test]
 async fn document_without_manifest_reaches_nothing() {
     let (dispatcher, recorder) = dispatcher(None);
@@ -186,7 +186,7 @@ async fn ungranted_stream_fails_rather_than_hanging() {
     ));
 }
 
-/// §9.4: stdio exists only in headless mode.
+/// Headless mode: stdio exists only in headless mode.
 #[tokio::test]
 async fn stdio_is_headless_only() {
     let recorder = Arc::new(Recorder::default());
@@ -220,9 +220,9 @@ fn protocol_round_trips_through_json() {
     }
 }
 
-// --- §9.1 the shim ---
+// --- the bridge transport the shim ---
 
-/// §9.3: "Absent permission, the module is not injected at all."
+/// The API catalog: "Absent permission, the module is not injected at all."
 #[test]
 fn shim_injects_only_granted_modules() {
     let granted = permissions(r#"{"fs":{"read":["~/x/**"]},"notifications":true}"#);
@@ -244,7 +244,7 @@ fn shim_for_powerless_document_has_no_modules() {
     let shim = render_shim(&ShimConfig::for_permissions("0.1.0", None, false));
     let table = shim.lines().find(|l| l.contains("var MODULES =")).unwrap();
     assert!(table.contains("{}"), "expected an empty module table, got: {table}");
-    assert!(shim.contains("Object.freeze(htmlapp)"), "§9.1 requires the global be frozen");
+    assert!(shim.contains("Object.freeze(htmlapp)"), "the bridge transport requires the global be frozen");
 }
 
 #[test]
@@ -291,7 +291,7 @@ fn dispatch_script_escapes_js_line_terminators() {
     assert!(!script.contains('\u{2029}'), "U+2029 survived: {script}");
 }
 
-// --- §9.2 TypeScript emit ---
+// --- the type-safety promise TypeScript emit ---
 
 #[test]
 fn typescript_covers_the_whole_catalog() {

@@ -1,4 +1,4 @@
-//! `udev` — device enumeration and hotplug (PRD §9.3 Tier 2).
+//! `udev` — device enumeration and hotplug (docs/api-reference.md, Tier 2).
 
 use async_stream::stream;
 use htmlapp_bridge::RpcError;

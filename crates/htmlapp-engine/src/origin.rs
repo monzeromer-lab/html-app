@@ -1,4 +1,4 @@
-//! The `htmlapp://app/` origin (PRD §8.4) and the injected CSP (§11.2 rule 8).
+//! The `htmlapp://app/` origin (docs/document-format.md) and the injected CSP (docs/security.md, rule 8).
 //!
 //! Serving the document over a custom scheme rather than `file://` gives it a real, stable origin.
 //! That is what makes `localStorage`, IndexedDB, service workers, ES module imports, and a
@@ -31,11 +31,11 @@ pub enum Response {
 pub struct OriginResolver {
     /// The prepared HTML, served for `/` and `/index.html`.
     index: String,
-    /// `Some` only when the manifest opted into `"assets": "sibling"` (§8.4).
+    /// `Some` only when the manifest opted into `"assets": "sibling"` (docs/document-format.md).
     asset_root: Option<PathBuf>,
-    /// Cached modules fetched through the import map (§8.5).
+    /// Cached modules fetched through the import map (docs/document-format.md).
     module_root: Option<PathBuf>,
-    /// Paths the page may fetch directly by token (§9.1).
+    /// Paths the page may fetch directly by token (docs/bridge.md).
     blobs: htmlapp_bridge::BlobStore,
 }
 
@@ -93,7 +93,7 @@ impl OriginResolver {
             };
         }
 
-        // §8.4: the default is strictly single-file. Without the opt-in there is nothing else here.
+        // The origin and loading rules: the default is strictly single-file. Without the opt-in there is nothing else here.
         match &self.asset_root {
             Some(root) => serve_file(root, path, false),
             None => Response::Forbidden,
@@ -186,7 +186,7 @@ fn guess_content_type(path: &Path) -> String {
     .to_string()
 }
 
-/// Build the Content-Security-Policy the runtime injects (§11.2 rule 8).
+/// Build the Content-Security-Policy the runtime injects (docs/security.md, rule 8).
 ///
 /// `'unsafe-inline'` for scripts and styles is not an oversight: G1 says the input is one file with
 /// no build step, so a single-file app's script *is* inline, and a nonce-based policy would mean
@@ -240,7 +240,7 @@ fn csp_source(pattern: &str) -> Option<String> {
     Some(format!("{scheme}://{host}"))
 }
 
-/// Prepare a document for serving: inject the CSP and rewrite its import map (§8.5).
+/// Prepare a document for serving: inject the CSP and rewrite its import map (docs/document-format.md).
 ///
 /// The CSP goes in as the first `<meta>` in `<head>`, so it applies to every subsequent element.
 /// A manifest may override it, which is a deliberate act recorded in the document itself.
@@ -312,7 +312,7 @@ fn html_escape_attribute(value: &str) -> String {
         .replace('>', "&gt;")
 }
 
-/// Whether a navigation is allowed to proceed (§4.2 N2, §11.2 rule 8).
+/// Whether a navigation is allowed to proceed (docs/architecture.md, N2 and docs/security.md, rule 8).
 ///
 /// The runtime is not a browser: it has no tabs, no address bar, and no arbitrary browsing. A page
 /// that navigates itself to an attacker's origin would be running that origin's code inside a

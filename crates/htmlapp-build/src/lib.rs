@@ -1,4 +1,4 @@
-//! `htmlapp build` (PRD §13).
+//! `htmlapp build` (docs/building.md).
 //!
 //! ```sh
 //! htmlapp build tool.hta
@@ -176,9 +176,9 @@ pub fn build(source: &Path, options: &BuildOptions) -> Result<BuildOutput, Build
     Ok(output)
 }
 
-/// A minimal starter document for the launcher's "New blank app" (§7.2).
+/// A minimal starter document for the launcher's "New blank app" (docs/building.md).
 ///
-/// §4.2 N1 rules out a scaffolding command, so this is deliberately one file with a commented
+/// The goals and non-goals, N1 rules out a scaffolding command, so this is deliberately one file with a commented
 /// manifest — everything an author needs to see, and nothing to un-scaffold.
 pub const BLANK_APP: &str = r##"<!DOCTYPE html>
 <html>

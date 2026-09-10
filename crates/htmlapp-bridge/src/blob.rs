@@ -1,4 +1,4 @@
-//! Bulk transfer that bypasses JSON (PRD §9.1).
+//! Bulk transfer that bypasses JSON (docs/bridge.md).
 //!
 //! "For genuine bulk transfer the host mints a `blob://` URL the page fetches directly, so bytes
 //! never pass through JSON."

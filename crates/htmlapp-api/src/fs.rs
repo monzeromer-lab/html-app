@@ -1,6 +1,6 @@
-//! `fs` — filesystem access (PRD §9.3 Tier 1).
+//! `fs` — filesystem access (docs/api-reference.md, Tier 1).
 //!
-//! Every path is checked against the manifest's globs with symlinks resolved first (§11.2 rule 5),
+//! Every path is checked against the manifest's globs with symlinks resolved first (docs/security.md, rule 5),
 //! and the *resolved* path is what gets opened. Re-resolving between the check and the open would
 //! leave a window in which a symlink could be swapped underneath the decision.
 
@@ -367,7 +367,7 @@ impl FsModule {
         Ok(Value::Null)
     }
 
-    /// §9.1: "For genuine bulk transfer the host mints a `blob://` URL the page fetches directly,
+    /// The bridge transport: "For genuine bulk transfer the host mints a `blob://` URL the page fetches directly,
     /// so bytes never pass through JSON."
     async fn blob(&self, params: Value) -> Result<Value, RpcError> {
         let params: PathParams = decode("fs.blob", params)?;

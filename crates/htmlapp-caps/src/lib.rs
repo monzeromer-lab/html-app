@@ -5,7 +5,7 @@
 //! site. Nothing here touches an engine, a window, or a runtime, so the policy can be tested — and
 //! audited — without starting a browser.
 //!
-//! The model, in one paragraph (PRD §11.2): a document with no manifest gets no native APIs, and
+//! The model, in one paragraph (docs/security.md): a document with no manifest gets no native APIs, and
 //! that is silent rather than an error. Permissions are declared in the document and enforced in
 //! Rust, so nothing in JS can widen them. Consent is pinned to `sha256(file)`, so editing the file
 //! re-prompts with a diff of what changed. Paths are canonicalised before they are checked, so a
@@ -34,5 +34,5 @@ pub use permissions::{
     SqlPermission,
 };
 
-/// The version of the runtime, surfaced to the page as `htmlapp.version` (§9.1).
+/// The version of the runtime, surfaced to the page as `htmlapp.version` (docs/bridge.md).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

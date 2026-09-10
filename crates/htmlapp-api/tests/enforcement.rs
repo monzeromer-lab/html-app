@@ -1,4 +1,4 @@
-//! Enforcement at the call site (PRD §9.3, §11.2).
+//! Enforcement at the call site (docs/api-reference.md and docs/security.md).
 //!
 //! `htmlapp-caps` is tested for whether the *policy* is right. These tests are about whether the
 //! modules actually apply it.
@@ -52,7 +52,7 @@ async fn fs_reads_inside_the_scope_and_refuses_outside_it() {
     assert_eq!(outside.code, ErrorCode::PermissionDenied);
 }
 
-/// §11.2 rule 5, at the point the file is actually opened.
+/// The security model, rule 5, at the point the file is actually opened.
 #[tokio::test]
 async fn fs_refuses_to_read_through_a_symlink_out_of_scope() {
     let temp = tempfile::tempdir().unwrap();
@@ -301,7 +301,7 @@ async fn store_round_trips_and_is_scoped_to_the_app() {
     );
 }
 
-// --- origin matching (§11.3) ---
+// --- origin matching (docs/security.md) ---
 
 #[test]
 fn url_matching_enforces_scheme_host_and_path() {
@@ -320,7 +320,7 @@ fn url_matching_enforces_scheme_host_and_path() {
     assert!(!url_matches("https://h.example/v1/*", "https://h.example/v2/users"));
 }
 
-// --- blob tokens (§9.1) ---
+// --- blob tokens (docs/bridge.md) ---
 
 /// `/dev/urandom` is an endless stream. Anything that reads it to EOF never returns, so this is a
 /// regression test for a hang, not just for entropy.

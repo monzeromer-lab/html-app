@@ -1,4 +1,4 @@
-// The HTML App bridge shim (PRD §9.1).
+// The HTML App bridge shim (docs/bridge.md).
 //
 // Injected at document-start, before any page script runs. Everything the page can reach goes
 // through here, and this file cannot widen what the manifest granted: the host re-checks every
@@ -11,6 +11,7 @@
   var PERMISSIONS = __HTMLAPP_PERMISSIONS__;
   var MODULES = __HTMLAPP_MODULES__;
   var HEADLESS = __HTMLAPP_HEADLESS__;
+  var FORMAT = "__HTMLAPP_FORMAT__";
 
   var pending = new Map(); // id -> {resolve, reject}
   var streams = new Map(); // id -> stream controller
@@ -213,7 +214,7 @@
 
   // --- module construction -------------------------------------------------
   //
-  // §9.3: "Absent permission, the module is not injected at all — the property does not exist, so
+  // The API catalog: "Absent permission, the module is not injected at all — the property does not exist, so
   // feature detection works naturally."
 
   function buildModule(name, spec) {
@@ -233,7 +234,7 @@
     return Object.freeze(module);
   }
 
-  // --- native views (§10) ---------------------------------------------------
+  // --- native views (docs/bridge.md) ---------------------------------------------------
   //
   // The custom element is a transparent placeholder that takes part in normal HTML layout. A
   // ResizeObserver reports its viewport rect to the host, which paints a real GPUI element there,
@@ -354,7 +355,7 @@
     htmlapp[name] = buildModule(name, MODULES[name]);
   });
 
-  // §9.4: headless mode makes a .hta a legitimate participant in a shell pipeline.
+  // Headless mode: headless mode makes a .hta a legitimate participant in a shell pipeline.
   if (HEADLESS) {
     htmlapp.stdin = Object.freeze({
       read: function () {
@@ -377,11 +378,15 @@
         return invoke("stdio.writeErr", { data: data });
       },
     });
+    // Headless mode's `--format json`. A hint from the invoker about what shape of output is wanted;
+    // The document decides what to do with it.
+    htmlapp.format = FORMAT || null;
+
     htmlapp.exit = function (code) {
       return invoke("stdio.exit", { code: code === undefined ? 0 : code });
     };
 
-    // A headless document exits when it says so (§9.4) — but a document that throws never gets to
+    // A headless document exits when it says so (docs/bridge.md) — but a document that throws never gets to
     // say so, and would otherwise hang whatever shell pipeline it is part of, forever. An uncaught
     // error is reported on stderr and exits non-zero, which is what any other pipeline tool does.
     var reportFatal = function (kind, error) {
@@ -402,7 +407,7 @@
     });
   }
 
-  // §9.1: "Object.freeze(htmlapp)". Nothing in the page can add a module that was not granted,
+  // The bridge transport: "Object.freeze(htmlapp)". Nothing in the page can add a module that was not granted,
   // or swap `invoke` for something that lies to the rest of the page about what it called.
   Object.freeze(htmlapp);
   Object.defineProperty(window, "htmlapp", {

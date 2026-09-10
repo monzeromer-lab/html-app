@@ -1,4 +1,4 @@
-//! `usb` — USB device access (PRD §9.3 Tier 4).
+//! `usb` — USB device access (docs/api-reference.md, Tier 4).
 //!
 //! `rusb` builds libusb from source here, so this works on a machine without a `libusb-1.0-dev`
 //! package. A hardware API that exists only where the right `-dev` package happens to be installed

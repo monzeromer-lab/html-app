@@ -1,6 +1,6 @@
-//! `dbus` — the session and system buses (PRD §9.3 Tier 2).
+//! `dbus` — the session and system buses (docs/api-reference.md, Tier 2).
 //!
-//! §9.3 calls this "the single highest-leverage API on Linux", and it is: NetworkManager, UPower,
+//! The API catalog calls this "the single highest-leverage API on Linux", and it is: NetworkManager, UPower,
 //! logind, BlueZ, and MPRIS all become reachable without the runtime wrapping any of them. That
 //! leverage cuts both ways, which is why every call is checked against `dbus.destinations` first.
 
@@ -175,7 +175,7 @@ impl DbusModule {
     /// Write a property.
     ///
     /// D-Bus properties are typed, and `Set` takes a variant. JSON does not carry the signature, so
-    /// the value's JSON shape decides: a bool becomes `b`, an integer `x`, a float `d`, a string
+    /// The value's JSON shape decides: a bool becomes `b`, an integer `x`, a float `d`, a string
     /// `s`. Anything else is refused rather than guessed at, because sending the wrong type to a
     /// system service is not a failure that surfaces gracefully.
     async fn set_property(&self, params: Value) -> Result<Value, RpcError> {

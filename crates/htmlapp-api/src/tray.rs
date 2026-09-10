@@ -1,4 +1,4 @@
-//! `tray` — StatusNotifierItem (PRD §9.3 Tier 2).
+//! `tray` — StatusNotifierItem (docs/api-reference.md, Tier 2).
 //!
 //! `ksni` speaks StatusNotifierItem, which is what KDE, most wlroots bars, and GNOME with the
 //! AppIndicator extension actually watch. The older XEmbed tray is not implemented: it needs an X11

@@ -9,9 +9,12 @@ htmlapp dashboard.hta
 No `npm`, no bundler, no config directory, no scaffolding command. The input is a file, not a
 project. Editing the file and saving it is the entire dev loop.
 
-This repository implements the design in [`docs/htmlapp-prd.md`](docs/htmlapp-prd.md). For exactly
-which parts are done, which are partial, and which are blocked — and on what — see
-**[`docs/STATUS.md`](docs/STATUS.md)**.
+**[Full documentation →](docs/)** · [Getting started](docs/getting-started.md) ·
+[Document format](docs/document-format.md) · [The bridge](docs/bridge.md) ·
+[API reference](docs/api-reference.md) · [Security model](docs/security.md) ·
+[Architecture](docs/architecture.md)
+
+Working with a coding agent? Point it at **[docs/AGENT.md](docs/AGENT.md)**.
 
 ---
 
@@ -97,6 +100,7 @@ different, and the difference is enforced in Rust rather than promised in docume
 | **Declarative, host-enforced** | Permissions live in the manifest and are checked in Rust on every call. The `htmlapp` object is frozen; nothing in JS can widen a grant. |
 | **Hash-pinned consent** | A decision is stored against `sha256(file)`, not the path. Editing the file re-prompts, showing a diff of what changed in the permission set. |
 | **Portals over prompts** | File choosing goes through `xdg-desktop-portal`, so the picker is your desktop's own — and a file you pick is authorised by that act, regardless of the manifest's globs. |
+| **Optional bubblewrap jail** | `--sandbox` re-execs under `bwrap` with only the granted paths bind-mounted. `$HOME` is not among them. |
 | **Symlink-resolved paths** | Globs are checked against canonical paths, so `~/logs/link-to-etc` cannot escape. The resolved path is also the one opened, closing the TOCTOU gap. |
 | **Revocable** | `htmlapp permissions list` / `revoke`, or the native settings window. |
 | **No wildcard origins** | `"net": { "fetch": ["*"] }` fails to parse. `*.example.com` does not match `notexample.com`. |
@@ -146,13 +150,15 @@ crates/
   htmlapp-caps/       manifest parsing, permission model, consent store   ← the policy
   htmlapp-api/        the native API modules, each gated on a permission  ← the enforcement
   htmlapp-bridge/     JSON-RPC dispatch, JS shim, TypeScript emit
-  htmlapp-engine/     WebEngine trait + the wry backend
+  htmlapp-engine/     WebEngine trait, the wry backend, X11 SHAPE compositing
+  htmlapp-engine-cef/ optional Chromium backend (scaffolded)
   htmlapp-runtime/    window lifecycle, consent flow, orchestration
   htmlapp-shell/      GPUI chrome: launcher, consent sheet, permissions manager
   htmlapp-views/      native views placed inline in HTML layout
   htmlapp-wayland/    layer-shell translation, output enumeration
   htmlapp-build/      stapling, .desktop, MIME, AppImage, Flatpak
 examples/             one .hta per reference use case
+packaging/            .deb, AUR, Flatpak, AppImage
 ```
 
 `htmlapp-caps` decides what a document *may* do; `htmlapp-api` decides whether a given call is
@@ -177,27 +183,30 @@ The end user gets one file and never learns the word "HTML App".
 
 ## Known limitations
 
-These are properties of the engine backend that ships today, not oversights. Each is explained in
-full where it lives in the code, and [`docs/STATUS.md`](docs/STATUS.md) has the complete list.
+These are properties of the engine backend that ships today, not oversights.
+[Architecture → Rendering](docs/architecture.md#rendering-and-compositing) explains each in full.
 
-- **Document windows run on X11 / XWayland.** wry embeds a native child surface, and
-  `build_as_child` is X11-only on Linux. The launcher itself is pure GPUI and runs Wayland-native.
-- **The page paints above the app chrome.** A native child surface is not composited into GPUI's
-  scene, so modals cannot yet paint over the page and `rounded()` does not clip it. This is the
-  single thing PRD §6.3's offscreen backend exists to fix.
-- **`mode: "layer"` and `mode: "lock"` refuse to run**, with an explanation that distinguishes "your
-  compositor lacks the protocol" from "this backend cannot render into one".
+- **Document windows run on X11 / XWayland.** wry's `build_as_child` is X11-only on Linux. The
+  launcher, consent sheet, and layer-shell mode are all Wayland-native.
+- **Compositing uses X11 SHAPE rectangles**, not offscreen rendering. Native UI over the page and
+  input routing work; per-pixel alpha, anti-aliased rounded corners, and shadows that fade over the
+  page do not.
+- **Layer-shell modes need `libgtk-layer-shell-dev`** and `--features layer-shell`.
+- **`dnd.startDrag`, `portal.screenCast`, and the `editor`/`video`/`canvas3d` views** are not
+  implemented and report `unsupported`.
 
 ---
 
 ## Testing
 
 ```sh
-cargo test --workspace     # 105 tests
+cargo test --workspace     # 130 tests
 ```
 
 The suite concentrates on the security boundary: symlink escapes, domain-suffix confusion, consent
 invalidation on edit, ungranted-module absence, and shell-injection-shaped inputs to the JS shim.
+Six real bugs were found this way — [Contributing](docs/contributing.md#what-a-good-test-looks-like-here)
+lists them.
 
 ## Licence
 

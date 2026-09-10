@@ -1,4 +1,4 @@
-//! Native views placed inline in HTML layout (PRD §10).
+//! Native views placed inline in HTML layout (docs/bridge.md).
 //!
 //! # What this is for
 //!
@@ -19,7 +19,7 @@
 //! "Above the page" is exactly the part the current engine backend cannot do. wry gives the page a
 //! *native child surface*, which paints above everything GPUI draws into the same window — so a
 //! view rendered here would be underneath the page rather than on top of it. That is the
-//! limitation §6.1 exists to remove, and it is removed by the offscreen backend in §6.3, not here.
+//! limitation the rendering design exists to remove, and it is removed by the offscreen backend in the render pipeline, not here.
 //!
 //! So the views in this crate are complete, tested GPUI elements that the runtime positions and
 //! keeps in sync; what they are waiting on is a backend that lets them be seen. Nothing about them
@@ -42,11 +42,11 @@ pub enum ViewKind {
     Terminal,
     /// A GPUI virtualized table — millions of rows without a DOM.
     Table,
-    /// GPUI editor plus tree-sitter. Not implemented yet (§14, M8).
+    /// GPUI editor plus tree-sitter. Not implemented yet (the roadmap, M8).
     Editor,
-    /// GStreamer / dmabuf. Not implemented yet (§14, M8).
+    /// GStreamer / dmabuf. Not implemented yet (the roadmap, M8).
     Video,
-    /// A direct Vulkan surface. Not implemented yet (§14, M8).
+    /// A direct Vulkan surface. Not implemented yet (the roadmap, M8).
     Canvas3d,
 }
 
@@ -72,8 +72,8 @@ impl ViewKind {
         }
     }
 
-    /// Whether this build can actually render this kind. §14 ships `terminal` and `table` in M5;
-    /// the rest are M8.
+    /// Whether this build can actually render this kind. The roadmap ships `terminal` and `table` in M5;
+    /// The rest are M8.
     pub fn is_implemented(self) -> bool {
         matches!(self, ViewKind::Terminal | ViewKind::Table)
     }

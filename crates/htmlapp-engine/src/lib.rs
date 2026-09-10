@@ -1,16 +1,16 @@
-//! The web engine abstraction and its backends (PRD §6.2).
+//! The web engine abstraction and its backends (docs/architecture.md).
 //!
 //! # Which backend, and why it matters
 //!
 //! The PRD's target backend is WPE WebKit rendered **offscreen** and composited *into* GPUI's
-//! scene as a texture (§6.1). That is the architectural commitment of the project, and it is what
+//! scene as a texture (docs/architecture.md). That is the architectural commitment of the project, and it is what
 //! makes modals paint over the page, `rounded()` clip it, and opacity and transforms apply to it.
 //!
 //! The backend that ships today is [`wry`], embedded as a **native child surface** inside the GPUI
 //! window. This is a different thing, and the difference is worth stating plainly rather than
 //! burying:
 //!
-//! | | Offscreen (WPE, §6.3) | Native child (wry, today) |
+//! | | Offscreen (WPE, the render pipeline) | Native child (wry, today) |
 //! |---|---|---|
 //! | Native UI over the page | Yes | **No** — the page paints last |
 //! | Parent `rounded()` / `overflow_hidden()` clips it | Yes | **No** |
@@ -19,10 +19,10 @@
 //! The Wayland restriction is not this crate's choice. `wry::WebViewBuilder::build_as_child`
 //! documents it directly: "Linux: Only X11 is supported". Embedding into a foreign window needs
 //! reparenting, and Wayland has no cross-toplevel reparenting to offer. [`prefers_x11`] exists so
-//! the runtime can select a backend that works before it opens a window it cannot fill.
+//! The runtime can select a backend that works before it opens a window it cannot fill.
 //!
 //! Everything above this trait — the bridge, the capability model, the API modules, the shell — is
-//! written against the trait rather than any backend, so the WPE path in §6.3 is an addition here
+//! written against the trait rather than any backend, so the WPE path in the render pipeline is an addition here
 //! rather than a rewrite everywhere.
 
 // `deny` rather than `forbid`: this is the crate that touches the engine's C libraries, so a
@@ -33,6 +33,8 @@
 pub mod imports;
 pub mod origin;
 
+#[cfg(feature = "layer-shell")]
+pub mod layer_backend;
 #[cfg(feature = "wry-backend")]
 pub mod occlusion;
 #[cfg(feature = "wry-backend")]
@@ -65,23 +67,23 @@ pub enum EngineError {
 
 pub type Result<T> = std::result::Result<T, EngineError>;
 
-/// How a backend gets pixels from the engine onto the screen (§6.3).
+/// How a backend gets pixels from the engine onto the screen (docs/architecture.md).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderPath {
-    /// §6.3 stage 1. Engine renders offscreen to a CPU buffer, uploaded into a GPUI image.
+    /// The render pipeline, stage 1. Engine renders offscreen to a CPU buffer, uploaded into a GPUI image.
     /// Composites correctly; upload cost is proportional to the damaged region.
     Shm,
-    /// §6.3 stage 2. Zero-copy dmabuf imported as a Vulkan image and drawn by GPUI.
+    /// The render pipeline, stage 2. Zero-copy dmabuf imported as a Vulkan image and drawn by GPUI.
     DmaBuf,
     /// A native child surface positioned over the host window. Cheap, but it paints above
     /// everything the host draws and cannot be clipped by it.
     NativeChild,
-    /// No surface at all (§9.4).
+    /// No surface at all (docs/bridge.md).
     Headless,
 }
 
 impl RenderPath {
-    /// Whether the host can paint UI *over* the page — the §4.2 G2 promise.
+    /// Whether the host can paint UI *over* the page — the goals and non-goals, G2 promise.
     pub fn composites(self) -> bool {
         matches!(self, RenderPath::Shm | RenderPath::DmaBuf)
     }
@@ -122,7 +124,7 @@ pub enum EngineEvent {
     NavigationBlocked(String),
     /// `document.title` changed.
     TitleChanged(String),
-    /// A drag entered, moved over, dropped on, or left the page (§9.3 `dnd`).
+    /// A drag entered, moved over, dropped on, or left the page (the API catalog `dnd`).
     DragDrop(DragDropEvent),
 }
 
@@ -153,11 +155,11 @@ impl std::fmt::Debug for EngineCallbacks {
 pub struct EngineConfig {
     /// The prepared HTML — CSP injected, import map rewritten — served at `htmlapp://app/`.
     pub index_html: String,
-    /// Sibling asset directory, if the manifest opted in (§8.4).
+    /// Sibling asset directory, if the manifest opted in (docs/document-format.md).
     pub asset_root: Option<PathBuf>,
-    /// Cached remote modules (§8.5).
+    /// Cached remote modules (docs/document-format.md).
     pub module_root: Option<PathBuf>,
-    /// The bridge shim, injected at document-start before any page script runs (§9.1).
+    /// The bridge shim, injected at document-start before any page script runs (docs/bridge.md).
     pub init_script: String,
     /// Used for the navigation policy and the window's background treatment.
     pub manifest: Manifest,
@@ -165,7 +167,7 @@ pub struct EngineConfig {
     pub transparent: bool,
     /// Whether to make devtools reachable. Off unless asked for.
     pub devtools: bool,
-    /// Paths the page may fetch directly by token (§9.1). Shared with the `fs` module, which is
+    /// Paths the page may fetch directly by token (docs/bridge.md). Shared with the `fs` module, which is
     /// what mints the tokens.
     pub blobs: htmlapp_bridge::BlobStore,
 }
@@ -192,7 +194,7 @@ pub trait WebEngine {
 
     fn reload(&self) -> Result<()>;
 
-    /// Punch holes in the page so the host can paint over it (§4.2 G2).
+    /// Punch holes in the page so the host can paint over it (docs/architecture.md, G2).
     ///
     /// Rects are in logical pixels relative to the page's own origin. An empty slice restores the
     /// page to its full extent.
@@ -213,7 +215,7 @@ pub trait WebEngine {
     /// Open the engine's inspector, if this build has one.
     fn open_devtools(&self) {}
 
-    /// A human-readable backend name for the launcher's diagnostics strip (§7.2).
+    /// A human-readable backend name for the launcher's diagnostics strip (docs/building.md).
     fn backend_name(&self) -> &'static str;
 
     /// The engine version, for the same diagnostics strip.

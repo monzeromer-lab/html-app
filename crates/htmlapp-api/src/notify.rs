@@ -1,4 +1,4 @@
-//! `notify` — desktop notifications (PRD §9.3 Tier 2).
+//! `notify` — desktop notifications (docs/api-reference.md, Tier 2).
 //!
 //! `org.freedesktop.Notifications` directly rather than through the portal, because the portal's
 //! Notification interface has no replace-id and no progress hint, and both are what a long-running

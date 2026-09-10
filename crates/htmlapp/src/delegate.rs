@@ -1,4 +1,4 @@
-//! Wiring the launcher to the things only the process can do (PRD §7.2, §7.4).
+//! Wiring the launcher to the things only the process can do (docs/building.md and docs/architecture.md).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use htmlapp_shell::launcher::LauncherDelegate;
 
 /// Implements the launcher's callbacks.
 ///
-/// §7.4 is what shapes this: "Each document runs in its own process", and "the launcher is
+/// The process and instance model is what shapes this: "Each document runs in its own process", and "the launcher is
 /// single-instance. Opening a file from it spawns a detached child; the launcher stays up."
 pub struct CliDelegate {
     /// A small runtime for the portal calls, which are async.
@@ -40,7 +40,7 @@ impl CliDelegate {
 
         match std::process::Command::new(exe)
             .arg(path)
-            // Detached: §7.4 says closing the launcher must not kill running documents.
+            // Detached: the process and instance model says closing the launcher must not kill running documents.
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::inherit())
@@ -80,7 +80,7 @@ impl LauncherDelegate for CliDelegate {
                 }
             };
 
-            // §7.2: "removes the blank-page problem without introducing a scaffolding command".
+            // The launcher: "removes the blank-page problem without introducing a scaffolding command".
             let path = if chosen.extension().is_none() {
                 chosen.with_extension("hta")
             } else {
@@ -151,7 +151,7 @@ impl LauncherDelegate for CliDelegate {
     }
 }
 
-/// Open the launcher window (§7.2).
+/// Open the launcher window (docs/building.md).
 pub fn run_launcher(open_immediately: bool, permissions_ui: bool) -> Result<()> {
     let delegate = CliDelegate::new()?;
 
@@ -159,8 +159,8 @@ pub fn run_launcher(open_immediately: bool, permissions_ui: bool) -> Result<()> 
         return htmlapp_runtime::app::run_permissions_manager().map_err(Into::into);
     }
 
-    // §7.4: "The launcher is single-instance." Documents are the opposite — one process each — so
-    // the guard applies only here. Held for the life of the process.
+    // The process and instance model: "The launcher is single-instance." Documents are the opposite — one process each — so
+    // The guard applies only here. Held for the life of the process.
     let Some(_lock) = htmlapp_runtime::single_instance::acquire() else {
         eprintln!(
             "htmlapp: a launcher is already running.\n\

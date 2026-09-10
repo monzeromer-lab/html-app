@@ -1,6 +1,6 @@
-//! `net` — raw sockets and an embedded server (PRD §9.3 Tier 4).
+//! `net` — raw sockets and an embedded server (docs/api-reference.md, Tier 4).
 //!
-//! §9.3: "so an HTML App tool can be something other clients talk to." That is the interesting half
+//! The API catalog: "so an HTML App tool can be something other clients talk to." That is the interesting half
 //! — a `.hta` that serves a dashboard on localhost, or accepts a webhook, is a different kind of
 //! thing from a page that only makes outbound calls.
 //!
@@ -576,7 +576,7 @@ impl ApiHandler for NetModule {
 
                     // The lock is resolved to a plain value in its own scope. Holding a
                     // `MutexGuard` across the `await` below would make this future `!Send`, which
-                    // the dispatcher cannot box.
+                    // The dispatcher cannot box.
                     enum Target {
                         Queued,
                         Datagram(Arc<tokio::net::UdpSocket>),
@@ -763,4 +763,100 @@ impl ApiHandler for NetModule {
 
 fn operation_failed(error: std::io::Error) -> RpcError {
     RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn head_parsing_waits_for_the_full_head() {
+        // Nothing to parse until the blank line arrives.
+        assert!(parse_head(b"GET / HTTP/1.1\r\nHost: x").is_none());
+
+        let (method, path, headers, consumed) =
+            parse_head(b"POST /api?q=1 HTTP/1.1\r\nHost: x\r\nContent-Length: 4\r\n\r\nbody")
+                .expect("a complete head parses");
+
+        assert_eq!(method, "POST");
+        assert_eq!(path, "/api?q=1");
+        assert_eq!(header(&headers, "content-length"), Some("4"));
+        // Header names are matched case-insensitively, so they are lowercased on the way in.
+        assert_eq!(header(&headers, "host"), Some("x"));
+        // The head ends after the blank line; the body follows at this offset.
+        assert_eq!(consumed, 54);
+    }
+
+    /// The example key and digest from RFC 6455 §1.3.
+    #[test]
+    fn websocket_handshake_matches_the_rfc() {
+        assert_eq!(
+            websocket_accept("dGhlIHNhbXBsZSBub25jZQ=="),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+        );
+    }
+
+    #[test]
+    fn websocket_frames_round_trip() {
+        let encoded = encode_frame(b"hello");
+        // Server-to-client frames are never masked, so the length byte carries no mask bit.
+        assert_eq!(encoded[0], 0x81);
+        assert_eq!(encoded[1], 5);
+        assert_eq!(&encoded[2..], b"hello");
+
+        let (payload, consumed) = decode_frame(&encoded).expect("decodes");
+        assert_eq!(payload.as_deref(), Some(&b"hello"[..]));
+        assert_eq!(consumed, encoded.len());
+    }
+
+    /// Client-to-server frames are always masked; failing to unmask yields gibberish.
+    #[test]
+    fn masked_client_frames_are_unmasked() {
+        let mask = [0x37u8, 0xfa, 0x21, 0x3d];
+        let payload = b"Hello";
+        let mut frame = vec![0x81, 0x80 | payload.len() as u8];
+        frame.extend_from_slice(&mask);
+        frame.extend(payload.iter().enumerate().map(|(i, b)| b ^ mask[i % 4]));
+
+        let (decoded, consumed) = decode_frame(&frame).expect("decodes");
+        assert_eq!(decoded.as_deref(), Some(&b"Hello"[..]));
+        assert_eq!(consumed, frame.len());
+    }
+
+    #[test]
+    fn partial_frames_are_not_decoded() {
+        let encoded = encode_frame(b"hello");
+        for length in 0..encoded.len() {
+            assert!(
+                decode_frame(&encoded[..length]).is_none(),
+                "decoded a truncated frame of {length} bytes"
+            );
+        }
+    }
+
+    /// A close frame is reported distinctly, so the connection is torn down rather than a zero
+    /// length payload being delivered to the page as a message.
+    #[test]
+    fn close_frames_are_recognised() {
+        let (payload, _) = decode_frame(&[0x88, 0x00]).expect("decodes");
+        assert!(payload.is_none(), "opcode 0x8 is close");
+    }
+
+    /// A length field larger than the cap must not cause an allocation of that size.
+    #[test]
+    fn oversized_frames_are_refused() {
+        let mut frame = vec![0x81, 127];
+        frame.extend_from_slice(&(u64::MAX).to_be_bytes());
+        let (payload, _) = decode_frame(&frame).expect("returns rather than allocating");
+        assert!(payload.is_none(), "an oversized frame is treated as a close");
+    }
+
+    #[test]
+    fn long_payloads_use_the_extended_length_forms() {
+        let medium = encode_frame(&vec![b'x'; 200]);
+        assert_eq!(medium[1], 126, "126 selects a 16-bit length");
+
+        let large = encode_frame(&vec![b'x'; 70_000]);
+        assert_eq!(large[1], 127, "127 selects a 64-bit length");
+    }
 }

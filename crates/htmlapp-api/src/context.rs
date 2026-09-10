@@ -21,7 +21,7 @@ pub struct ApiContext {
     fs_write: PathScope,
     sql_databases: PathScope,
     data_dir: PathBuf,
-    /// Paths the user chose through a portal file picker. §11.2 rule 4: the picker *is* the
+    /// Paths the user chose through a portal file picker. The security model, rule 4: the picker *is* the
     /// consent, so these are readable and writable regardless of the manifest's globs.
     portal_grants: parking_lot::RwLock<Vec<PathBuf>>,
 }
@@ -82,7 +82,7 @@ impl ApiContext {
 
     /// Record a path the user picked through a portal dialog.
     ///
-    /// §11.2 rule 4: "files arrive pre-authorised outside the granted globs". The user selecting a
+    /// The security model, rule 4: "files arrive pre-authorised outside the granted globs". The user selecting a
     /// file in their desktop's own picker is a stronger, more specific act of consent than a glob
     /// in a manifest, so it is honoured — but only for the exact file chosen, never its directory.
     pub fn grant_from_portal(&self, path: impl AsRef<Path>) {

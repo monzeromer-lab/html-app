@@ -1,10 +1,10 @@
-//! The webview as a GPUI element (PRD §6.6).
+//! The webview as a GPUI element (docs/architecture.md).
 //!
-//! §6.6 says the *ergonomics* of `wf-studio`'s `WebView` carry over even though the backend does
+//! The WebView ergonomics says the *ergonomics* of `wf-studio`'s `WebView` carry over even though the backend does
 //! not: an entity built with `cx.new(...)`, implementing `IntoElement` so it drops into a normal
 //! tree via `.child(...)`, with `show()`/`hide()` and ordinary GPUI layout around it.
 //!
-//! What §6.6 says goes away is this:
+//! What the WebView ergonomics says goes away is this:
 //!
 //! ```ignore
 //! let mount_webview = has_page && app.modal.is_none();
@@ -148,6 +148,6 @@ impl Element for WebViewElement {
         _: &mut App,
     ) {
         // Nothing to paint: the engine owns these pixels. On an offscreen backend this is where
-        // the frame would be drawn into GPUI's scene instead (§6.3).
+        // The frame would be drawn into GPUI's scene instead (docs/architecture.md).
     }
 }

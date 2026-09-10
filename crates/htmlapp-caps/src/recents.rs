@@ -1,6 +1,6 @@
-//! The launcher's recent-documents list (PRD §7.2).
+//! The launcher's recent-documents list (docs/building.md).
 //!
-//! §17 open question 8 flags that the paths themselves may be sensitive. The resolution taken here
+//! The open questions, open question 8 flags that the paths themselves may be sensitive. The resolution taken here
 //! is store-with-purge: recording is on by default, `--private` suppresses it for a session, and
 //! `clear()` is reachable from both the launcher and the CLI.
 
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{CapsError, Result};
 
-/// §7.2: "The last ten documents".
+/// The launcher: "The last ten documents".
 pub const MAX_RECENTS: usize = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

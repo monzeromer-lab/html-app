@@ -1,4 +1,4 @@
-//! Manifest-to-protocol translation for layer-shell (PRD §8.3).
+//! Manifest-to-protocol translation for layer-shell (docs/document-format.md).
 
 use htmlapp_caps::Manifest;
 use htmlapp_wayland::{
@@ -10,7 +10,7 @@ fn config(json: &str) -> LayerConfig {
     LayerConfig::from_window(&manifest.window)
 }
 
-/// The exact §8.3 example must translate to the values wlr-layer-shell expects.
+/// The window-mode example must translate to the values wlr-layer-shell expects.
 #[test]
 fn prd_example_translates_correctly() {
     let layer = config(
@@ -44,7 +44,7 @@ fn every_layer_maps_to_its_protocol_value() {
 #[test]
 fn keyboard_interactivity_uses_the_protocol_numbering() {
     // The protocol orders these none=0, exclusive=1, on-demand=2 — not alphabetically, and not in
-    // the order they appear in the manifest documentation.
+    // The order they appear in the manifest documentation.
     for (name, value) in [("none", 0), ("exclusive", 1), ("on-demand", 2)] {
         let layer = config(&format!(
             r#"{{"window":{{"keyboard_interactivity":"{name}"}}}}"#

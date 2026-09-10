@@ -1,4 +1,4 @@
-//! Native views (PRD §10).
+//! Native views (docs/bridge.md).
 //!
 //! These test the parts that do not need a window: the terminal's escape handling and the table's
 //! data model. Rendering is GPUI's job and is exercised by running the app.
@@ -159,7 +159,7 @@ fn view_kinds_report_what_is_actually_implemented() {
     assert_eq!(ViewKind::parse("table"), Some(ViewKind::Table));
     assert_eq!(ViewKind::parse("nonsense"), None);
 
-    // §14 ships terminal and table in M5; editor, video, and canvas3d are M8.
+    // The roadmap ships terminal and table in M5; editor, video, and canvas3d are M8.
     assert!(ViewKind::Terminal.is_implemented());
     assert!(ViewKind::Table.is_implemented());
     assert!(!ViewKind::Editor.is_implemented());

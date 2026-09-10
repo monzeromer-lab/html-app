@@ -1,11 +1,11 @@
-//! `portal` — the `xdg-desktop-portal` surface (PRD §9.3 Tier 2).
+//! `portal` — the `xdg-desktop-portal` surface (docs/api-reference.md, Tier 2).
 //!
-//! §11.2 rule 4 is the reason this module is preferred wherever it covers a capability: "the user
+//! The security model, rule 4 is the reason this module is preferred wherever it covers a capability: "the user
 //! sees their desktop's own dialog, and HTML App never holds a broad grant it doesn't need." A
 //! screenshot taken through the portal is one the user approved in their compositor's own UI, and
 //! nothing here can take a second one without asking again.
 //!
-//! A side benefit §9.3 calls out: because these are portal calls, Flatpak confinement comes free.
+//! A side benefit the API catalog calls out: because these are portal calls, Flatpak confinement comes free.
 
 use htmlapp_bridge::RpcError;
 use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture, ValueStream};
@@ -127,7 +127,7 @@ impl PortalModule {
         // does not have to hold a screenshot in memory to pass it along.
         let uri = response.uri().to_string();
         // The user picked this file by taking the screenshot, so reading it is authorised the same
-        // way a file-chooser result is (§11.2 rule 4).
+        // way a file-chooser result is (docs/security.md, rule 4).
         if let Some(path) = uri.strip_prefix("file://") {
             self.ctx.grant_from_portal(path);
         }
@@ -343,7 +343,7 @@ impl ApiHandler for PortalModule {
             // returning a node id the page has no way to use.
             Err(RpcError::unsupported(
                 "portal.screenCast needs the PipeWire consumer that ships with the `video` native \
-                 view (PRD §10), which is not implemented yet",
+                 view (docs/bridge.md), which is not implemented yet",
             ))
         })
     }

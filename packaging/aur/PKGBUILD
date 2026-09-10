@@ -1,0 +1,49 @@
+# Maintainer: monzeromer-lab <support@alhakeem.app>
+pkgname=htmlapp
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Run a single .hta file as a Linux desktop application"
+arch=('x86_64' 'aarch64')
+url="https://github.com/monzeromer-lab/htmlapp"
+license=('Apache-2.0')
+depends=('webkit2gtk-4.1' 'gtk3' 'vulkan-icd-loader' 'libxkbcommon')
+makedepends=('rust' 'cargo' 'pkgconf' 'libsoup3')
+# xdg-desktop-portal backs dialog/screenshot/background; bubblewrap backs --sandbox.
+optdepends=(
+  'xdg-desktop-portal: system file pickers, screenshots, and background requests'
+  'bubblewrap: --sandbox support'
+  'gtk-layer-shell: layer-shell window modes (bars, docks, overlays)'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --release --locked --bin htmlapp
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --release --locked --workspace
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 target/release/htmlapp "$pkgdir/usr/bin/htmlapp"
+
+  # §13: registration is part of the install, not an afterthought.
+  install -Dm644 packaging/htmlapp.desktop "$pkgdir/usr/share/applications/htmlapp.desktop"
+  install -Dm644 packaging/htmlapp.xml "$pkgdir/usr/share/mime/packages/htmlapp.xml"
+  install -Dm644 packaging/htmlapp.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/htmlapp.svg"
+
+  # §7.2: the launcher's bundled examples.
+  install -dm755 "$pkgdir/usr/share/htmlapp/examples"
+  install -Dm644 examples/*.hta -t "$pkgdir/usr/share/htmlapp/examples/"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

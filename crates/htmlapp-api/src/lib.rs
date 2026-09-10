@@ -1,15 +1,15 @@
-//! The native API modules (PRD §9.3).
+//! The native API modules (docs/api-reference.md).
 //!
 //! `htmlapp-caps` decides what a document *may* do. This crate is where that decision is enforced,
 //! once per call, at the point the capability is actually exercised. Every module holds an
 //! [`ApiContext`] and every path, program, origin, database, and bus name goes through it.
 //!
 //! Modules are registered by [`register_all`] according to what the manifest granted. A module that
-//! was not granted is never registered and never injected, so §9.3's promise that "the property
+//! was not granted is never registered and never injected, so the API catalog's promise that "the property
 //! does not exist" holds at both ends of the bridge.
 
 // `deny` rather than `forbid`: `ffi` is the one module that cannot be written without `unsafe`,
-// because calling into a shared object is inherently unsound (§11.3 calls it "the escape hatch
+// because calling into a shared object is inherently unsound (the threat model calls it "the escape hatch
 // that voids the model"). Every other module in this crate is safe code.
 #![deny(unsafe_code)]
 
@@ -96,7 +96,7 @@ pub struct Registration {
     pub permissions: Option<Permissions>,
     /// The shell, for modules only it can implement.
     pub host: Arc<dyn HostBridge>,
-    /// §9.4: registers `stdio` and makes `htmlapp.exit` available.
+    /// Headless mode: registers `stdio` and makes `htmlapp.exit` available.
     pub headless: bool,
     /// Shared with the engine's origin resolver so `fs.blob` URLs can be served.
     pub blobs: htmlapp_bridge::BlobStore,

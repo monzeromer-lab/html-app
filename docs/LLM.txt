@@ -1,0 +1,90 @@
+# HTML App
+
+> A Rust runtime that turns a single `.hta` file — HTML with a JSON manifest in a `<script>` block —
+> into a Linux desktop application, with a capability model that makes that safe. No build step, no
+> bundler, no project directory: the input is a file, not a project.
+
+Apache-2.0 · Linux (Wayland and X11) · Rust 1.90+ · 11 crates · ~22,600 lines · 130 tests
+
+The governing idea: **a document gets no native APIs unless its manifest asks for them and the user
+agrees.** Permissions are declared in the document, enforced in Rust, and pinned to the file's
+content hash, so editing a file asks again. A document with no manifest is a page in a window, and
+that is silent rather than an error.
+
+## Documentation
+
+- [Docs index](README.md): Map of everything below.
+- [Getting started](getting-started.md): Install, first document, adding a capability, shipping.
+- [Document format](document-format.md): The manifest, all fields; five window modes; the
+  `htmlapp://app/` origin; import maps; the full permission vocabulary.
+- [The bridge](bridge.md): `invoke` / `stream` / `on`; error codes; blob URLs; native views;
+  headless mode; the wire protocol.
+- [API reference](api-reference.md): 28 modules, 144 methods, 22 events, generated from the catalog.
+- [Security model](security.md): The eight rules, the threat model, what a grant actually means.
+- [Architecture](architecture.md): Crate layout; rendering and compositing trade-offs; process
+  model; consent flow; data flow of one call.
+- [Building and packaging](building.md): System dependencies, Cargo features, `htmlapp build`,
+  stapling, `.deb` / AUR / Nix / Flatpak / AppImage, the CLI, configuration.
+- [Contributing](contributing.md): Setup, common tasks, testing philosophy, code style.
+- [AGENT.md](AGENT.md): For coding agents — invariants, file map, and the traps that are not
+  visible from reading the code.
+
+## Key concepts
+
+- **The manifest**: `<script type="application/htmlapp+json">` in `<head>`. Parsed by the host
+  *before* the engine sees the file, and inert to browsers — renaming a `.hta` to `.html` opens it in
+  Firefox without native APIs, so browser devtools stay usable while authoring.
+- **Deny by default**: no `permissions` block means `htmlapp.fs` is `undefined` — the module is never
+  constructed, not a stub that throws. `typeof htmlapp.fs === "undefined"` is a truthful feature
+  test.
+- **Hash-pinned consent**: decisions are stored against `sha256(file)`, not the path. An edit
+  re-prompts with a diff of what changed in the permission set.
+- **Three message shapes**: request/response, stream, and event. One shape would force every bulk
+  payload into a single base64 blob; bulk transfer instead escapes JSON via `blob:` URLs.
+- **Native views**: `<htmlapp-view kind="terminal">` places a real GPUI widget inline in HTML
+  layout. The host punches a hole in the page's own window with X11 SHAPE and draws there.
+- **Window modes**: `window`, `layer` (wlr-layer-shell bars and overlays), `lock`, `tray`,
+  `headless` (stdin → stdout, a legitimate shell-pipeline participant).
+- **Stapling**: `htmlapp build tool.hta` appends the document to a copy of the runtime with a
+  trailer. `./tool` runs its own document; the recipient never learns the runtime exists.
+
+## Crates
+
+- `htmlapp`: CLI, argument parsing, mode dispatch.
+- `htmlapp-caps`: Manifest parsing, permission model, consent store. **Policy.** No windowing.
+- `htmlapp-api`: The 28 native modules, each gated on a permission. **Mechanism.** No windowing.
+- `htmlapp-bridge`: JSON-RPC protocol, dispatch, the injected JS shim, TypeScript emit. Holds the
+  API catalog, which is the single source of truth for the surface.
+- `htmlapp-engine`: The `WebEngine` trait, the wry/WebKitGTK backend, X11 SHAPE occlusion, the
+  `htmlapp://app/` origin resolver, pinned-import caching.
+- `htmlapp-engine-cef`: Optional Chromium backend. Scaffolded, not implemented.
+- `htmlapp-runtime`: Session preparation, consent flow, window lifecycle, bubblewrap sandbox.
+- `htmlapp-shell`: GPUI chrome — launcher, consent sheet, permissions manager.
+- `htmlapp-views`: Native views — `alacritty_terminal` terminal, virtualised table.
+- `htmlapp-wayland`: Layer-shell manifest-to-protocol translation, output enumeration.
+- `htmlapp-build`: Stapling, `.desktop` and MIME generation, AppImage and Flatpak output.
+
+## Optional
+
+- [Examples](../examples): Ten documents, one per reference use case — log triage, headless CSV
+  pipeline, SQL notebook, embedded terminal, screenshot annotator, serial console, command palette,
+  Wayland bar, and a 100,000-row native table rendered inside HTML layout.
+- [Packaging](../packaging): Debian, AUR, Flatpak, AppImage recipes; `flake.nix` and `install.sh` at
+  the repository root.
+- [The API catalog](../crates/htmlapp-bridge/src/catalog.rs): The declaration both the JS shim and
+  `htmlapp types` are generated from.
+- [The injected shim](../crates/htmlapp-bridge/js/shim.js): Everything the page can reach, and the
+  only channel it has.
+
+## Known limitations
+
+Stated because they are properties of the shipping backend, not oversights:
+
+- Document windows run on **X11 or XWayland**. `wry`'s `build_as_child` is X11-only on Linux. The
+  launcher and consent sheet are pure GPUI and run Wayland-native, as does layer-shell mode.
+- Compositing is done with **X11 SHAPE rectangles**, not offscreen rendering. Native UI over the
+  page and input routing work; per-pixel alpha, anti-aliased rounded corners, and shadows that fade
+  over the page do not. The WPE backend described in the architecture doc is what removes this.
+- **Layer-shell modes** need `libgtk-layer-shell-dev` and `--features layer-shell`.
+- `dnd.startDrag`, `portal.screenCast`, and the `editor` / `video` / `canvas3d` views are not
+  implemented and report `unsupported`.

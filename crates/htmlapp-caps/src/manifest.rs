@@ -1,4 +1,4 @@
-//! The document format (PRD §8).
+//! The document format (docs/document-format.md).
 //!
 //! A manifest lives inside the document itself, in a `<script type="application/htmlapp+json">`
 //! block that the host parses *before* the file ever reaches the engine. The block is inert to
@@ -14,7 +14,7 @@ pub const MANIFEST_MIME: &str = "application/htmlapp+json";
 
 /// A parsed `.hta` manifest.
 ///
-/// Every field except `name` is optional: §11.2 requires that a document with no manifest — or a
+/// Every field except `name` is optional: the security model requires that a document with no manifest — or a
 /// manifest with no `permissions` block — is a valid, silent, powerless page rather than an error.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -37,20 +37,20 @@ pub struct Manifest {
     #[serde(default)]
     pub window: WindowSpec,
 
-    /// §11.2 rule 1: absent means no native APIs at all.
+    /// The security model, rule 1: absent means no native APIs at all.
     #[serde(default)]
     pub permissions: Option<Permissions>,
 
-    /// §8.5: remote ES modules, pinned by integrity hash and cached forever after first fetch.
+    /// The import map: remote ES modules, pinned by integrity hash and cached forever after first fetch.
     #[serde(default)]
     pub imports: std::collections::BTreeMap<String, ImportSpec>,
 
-    /// §8.4: `"sibling"` opts into resolving assets next to the source file. Default is
+    /// The origin and loading rules: `"sibling"` opts into resolving assets next to the source file. Default is
     /// strictly single-file.
     #[serde(default)]
     pub assets: AssetPolicy,
 
-    /// §11.2 rule 8: overrides the restrictive default CSP. Declaring this is a deliberate act.
+    /// The security model, rule 8: overrides the restrictive default CSP. Declaring this is a deliberate act.
     #[serde(default)]
     pub csp: Option<String>,
 }
@@ -87,7 +87,7 @@ impl Manifest {
             .unwrap_or("Untitled HTML App")
     }
 
-    /// §11.2 rule 1: a document with no `permissions` block gets no native APIs, silently.
+    /// The security model, rule 1: a document with no `permissions` block gets no native APIs, silently.
     pub fn is_powerless(&self) -> bool {
         self.permissions.as_ref().is_none_or(Permissions::is_empty)
     }
@@ -120,7 +120,7 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-/// §8.4: whether sibling files next to the document are reachable over `htmlapp://app/`.
+/// The origin and loading rules: whether sibling files next to the document are reachable over `htmlapp://app/`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AssetPolicy {
@@ -131,16 +131,16 @@ pub enum AssetPolicy {
     Sibling,
 }
 
-/// §8.5: one entry of the document's import map.
+/// The import map: one entry of the document's import map.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ImportSpec {
     pub url: String,
-    /// Required. §11.3 lists the unpinned supply chain as a named threat.
+    /// Required. The threat model lists the unpinned supply chain as a named threat.
     pub integrity: String,
 }
 
-/// §8.2 `window` and §8.3 window modes.
+/// The manifest `window` and the window modes.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct WindowSpec {
@@ -163,7 +163,7 @@ pub struct WindowSpec {
     #[serde(default)]
     pub mode: WindowMode,
 
-    // --- `mode: "layer"` only (§8.3) ---
+    // --- `mode: "layer"` only (docs/document-format.md) ---
     #[serde(default)]
     pub layer: Layer,
     #[serde(default)]
@@ -210,7 +210,7 @@ fn default_true() -> bool {
     true
 }
 
-/// §8.3: what kind of surface the document becomes.
+/// The window modes: what kind of surface the document becomes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WindowMode {
@@ -223,7 +223,7 @@ pub enum WindowMode {
     Lock,
     /// No surface until clicked. Applets and menu-bar tools.
     Tray,
-    /// No surface at all. CLI filters, stdin → stdout (§9.4).
+    /// No surface at all. CLI filters, stdin → stdout (docs/bridge.md).
     Headless,
 }
 

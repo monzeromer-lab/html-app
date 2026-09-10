@@ -1,4 +1,4 @@
-//! Stapling a document onto a copy of the runtime (PRD §13).
+//! Stapling a document onto a copy of the runtime (docs/building.md).
 //!
 //! "Stapling appends the document to a copy of the runtime with a trailer containing offset and
 //! length, which the runtime detects at startup. The end user gets one file and never learns the
@@ -6,7 +6,7 @@
 //!
 //! Appending rather than embedding is what keeps this a *copy* operation instead of a build: the
 //! runtime binary is already compiled, so producing a standalone app is a file write, not a
-//! toolchain invocation. That is what makes §4.2 G6 compatible with §4.2 G1.
+//! toolchain invocation. That is what makes single-file distribution compatible with zero-build.
 
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -142,7 +142,7 @@ pub fn extract(binary: &Path) -> Result<Option<Vec<u8>>> {
 
 /// Read the document stapled to the currently running executable, if any.
 ///
-/// §7.1: "A stapled binary (`./tool`) runs its embedded document. The launcher never appears."
+/// The launch modes: "A stapled binary (`./tool`) runs its embedded document. The launcher never appears."
 pub fn extract_from_current_exe() -> Option<Vec<u8>> {
     let exe = std::env::current_exe().ok()?;
     match extract(&exe) {

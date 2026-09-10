@@ -26,7 +26,7 @@ pub enum CapsError {
         source: globset::Error,
     },
 
-    /// §11.3: a wildcard origin would defeat the exfiltration mitigation entirely.
+    /// The threat model: a wildcard origin would defeat the exfiltration mitigation entirely.
     #[error("`{0}` is not an acceptable net origin: a bare wildcard grants unrestricted network access")]
     WildcardOrigin(String),
 

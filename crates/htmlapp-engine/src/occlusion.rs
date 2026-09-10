@@ -1,14 +1,14 @@
-//! Punching holes in the page so the host can paint over it (PRD §4.2 G2).
+//! Punching holes in the page so the host can paint over it (docs/architecture.md, G2).
 //!
 //! # The problem this solves
 //!
-//! §6.1 lists four consequences of layering a native child surface over the host window instead of
+//! The rendering design lists four consequences of layering a native child surface over the host window instead of
 //! compositing offscreen. The first two are the ones authors actually feel:
 //!
 //! > The webview paints over everything GPUI draws, so any modal or popover forces the webview to
 //! > be **removed from the element tree entirely** while the dialog is open.
 //!
-//! and the native views of §10, which are supposed to sit *above* the page, end up beneath it.
+//! and the native views of the native views design, which are supposed to sit *above* the page, end up beneath it.
 //!
 //! # The mechanism
 //!
@@ -26,7 +26,7 @@
 //! SHAPE regions are sets of rectangles. There is no per-pixel alpha and no anti-aliasing, so a
 //! rounded corner is a staircase unless it is approximated with enough rectangles, and a drop
 //! shadow that fades over the page cannot be expressed at all. Those need the offscreen path in
-//! §6.3. What this does give is the load-bearing part: **native UI over the page, with input**.
+//! The render pipeline. What this does give is the load-bearing part: **native UI over the page, with input**.
 
 use x11rb::connection::Connection;
 use x11rb::protocol::shape::{self, ConnectionExt as _, SK, SO};
@@ -81,7 +81,7 @@ impl Occluder {
     }
 
     /// Set the regions of the page that should be punched through, in physical pixels relative to
-    /// the child window's own origin.
+    /// The child window's own origin.
     ///
     /// `size` is the child window's full extent; the bounding region is reset to it each time
     /// before the holes are subtracted, so clearing an occlusion restores the page.

@@ -1,12 +1,12 @@
-//! The API catalog (PRD §9.3), as data.
+//! The API catalog (docs/api-reference.md), as data.
 //!
 //! Declaring the surface once, here, means the JS shim and the TypeScript declarations emitted by
-//! `htmlapp types` cannot drift apart — §9.2 promises single-file authors completion in their
+//! `htmlapp types` cannot drift apart — the type-safety promise gives single-file authors completion in their
 //! editor without a build step, and that promise is only as good as the two staying in sync.
 //!
-//! The tiers are a priority order, not a wish list (§16 R8).
+//! The tiers are a priority order, not a wish list (the risk register, R8).
 
-/// §9.3 groups the surface into four tiers by how central it is.
+/// The catalog groups the surface into four tiers by how central it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tier {
     /// The core: fs, process, dialog, http, sql, store.
@@ -30,7 +30,7 @@ impl Tier {
     }
 }
 
-/// Which of the three §9.1 message shapes a method uses.
+/// Which of the three message shapes a method uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MethodKind {
     /// `await htmlapp.invoke(...)` — resolves once.
@@ -50,7 +50,7 @@ pub struct ApiMethod {
     pub summary: &'static str,
 }
 
-/// An event delivered through `htmlapp.on(...)` (§9.1).
+/// An event delivered through `htmlapp.on(...)` (docs/bridge.md).
 #[derive(Debug, Clone, Copy)]
 pub struct ApiEvent {
     pub name: &'static str,
@@ -551,7 +551,7 @@ const PLUGIN: ApiModule = ApiModule {
 
 // ---------------------------------------------------------------------------
 
-/// Every module in the §9.3 catalog, in tier order.
+/// Every module in the API catalog, in tier order.
 pub const MODULES: &[ApiModule] = &[
     FS, PROCESS, DIALOG, HTTP, SQL, STORE,
     PORTAL, DBUS, TRAY, NOTIFY, SECRETS, SYSTEMD, UDEV,

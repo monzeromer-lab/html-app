@@ -1,7 +1,7 @@
-//! Routing page calls to native handlers (PRD §9.1).
+//! Routing page calls to native handlers (docs/bridge.md).
 //!
 //! The dispatcher is the single choke point between the page and every native capability, which is
-//! what §11.3 means by "the bridge is the only channel". It gates on the manifest before a handler
+//! what the threat model means by "the bridge is the only channel". It gates on the manifest before a handler
 //! is ever reached, so a handler cannot be invoked for a module the document was not granted even
 //! if it is registered.
 
@@ -68,7 +68,7 @@ struct OpenStream {
     cancelled: Arc<AtomicBool>,
 }
 
-/// A handle a module can hold to push events to the page (PRD §9.1).
+/// A handle a module can hold to push events to the page (docs/bridge.md).
 ///
 /// Separate from [`Dispatcher`] because events flow the other way: a tray click, a global hotkey,
 /// or a udev hotplug originates in a module and has no request to reply to. Sharing the

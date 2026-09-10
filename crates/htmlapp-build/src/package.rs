@@ -1,4 +1,4 @@
-//! AppImage and Flatpak outputs (PRD §13).
+//! AppImage and Flatpak outputs (docs/building.md).
 
 use std::path::{Path, PathBuf};
 
@@ -7,7 +7,7 @@ use htmlapp_caps::Manifest;
 /// Build an AppDir next to a stapled binary.
 ///
 /// The AppDir is produced unconditionally; turning it into a single-file `.AppImage` needs
-/// `appimagetool`, which is not something the runtime can supply. §13 promises the AppImage, so
+/// `appimagetool`, which is not something the runtime can supply. packaging and distribution promises the AppImage, so
 /// when the tool is missing the AppDir plus the exact command to finish the job is reported rather
 /// than silently skipping the output.
 pub fn write_appdir(
@@ -83,7 +83,7 @@ pub fn build_appimage(appdir: &Path, output: &Path) -> std::io::Result<bool> {
     Ok(status.success())
 }
 
-/// A Flatpak manifest for a built app (§13).
+/// A Flatpak manifest for a built app (docs/building.md).
 ///
 /// The bundled runtime links WebKitGTK, GTK, and Vulkan, so the finish-args have to grant the
 /// sockets those need. Filesystem access is deliberately *not* granted here: the document's own

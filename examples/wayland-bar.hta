@@ -5,10 +5,10 @@
   Exercises: window.mode "layer" (wlr-layer-shell), exclusive zone, os, dbus.
 
   RUNNING THIS: layer-shell needs a Wayland surface, and the engine backend that ships
-  today embeds into an X11 window (see PRD §6.1 and the htmlapp-engine crate docs).
+  today embeds into an X11 window (see the rendering design and the htmlapp-engine crate docs).
   So `htmlapp examples/wayland-bar.hta` will refuse with an explanation rather than
   open something broken. `htmlapp inspect examples/wayland-bar.hta` still works, and
-  this document is ready for the offscreen backend described in §6.3.
+  this document is ready for the offscreen backend described in the render pipeline.
 -->
 <html>
 <head>

@@ -1,4 +1,4 @@
-//! `shortcut` — global hotkeys (PRD §9.3 Tier 3).
+//! `shortcut` — global hotkeys (docs/api-reference.md, Tier 3).
 //!
 //! Two mechanisms, because Wayland deliberately has no way for a client to grab a key:
 //!
@@ -151,14 +151,14 @@ mod x11_grab {
         }
 
         // Keycodes rather than keysyms: mapping a keysym needs the keyboard mapping table, and for
-        // the ASCII range the offset from `a`/`0` is stable on every common layout.
+        // The ASCII range the offset from `a`/`0` is stable on every common layout.
         let key = key?;
         let keycode = match key.as_str() {
             k if k.len() == 1 && k.chars().next()?.is_ascii_lowercase() => {
                 let letters = b"abcdefghijklmnopqrstuvwxyz";
                 let index = letters.iter().position(|c| *c == k.as_bytes()[0])?;
                 // `a` is keycode 38 on the standard PC mapping; the alphabet is not contiguous, so
-                // the three keyboard rows are handled separately.
+                // The three keyboard rows are handled separately.
                 const ROWS: [(&str, u8); 3] =
                     [("qwertyuiop", 24), ("asdfghjkl", 38), ("zxcvbnm", 52)];
                 let _ = index;
@@ -349,5 +349,45 @@ impl ApiHandler for ShortcutModule {
                 other => Err(RpcError::not_found(&format!("shortcut.{other}"))),
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalise;
+
+    /// The same chord written three ways is one binding, not three.
+    #[test]
+    fn accelerators_normalise_to_one_form() {
+        let canonical = normalise("ctrl+shift+k");
+        for spelling in [
+            "Ctrl+Shift+K",
+            "shift+ctrl+k",
+            "CONTROL+SHIFT+K",
+            " ctrl + shift + k ",
+        ] {
+            assert_eq!(normalise(spelling), canonical, "{spelling}");
+        }
+    }
+
+    /// The platform aliases for the same physical modifier collapse together.
+    #[test]
+    fn modifier_aliases_collapse() {
+        assert_eq!(normalise("super+space"), normalise("cmd+space"));
+        assert_eq!(normalise("super+space"), normalise("win+space"));
+        assert_eq!(normalise("alt+f4"), normalise("meta+f4"));
+    }
+
+    /// Different chords must stay different, or the manifest's allow-list would be meaningless.
+    #[test]
+    fn distinct_accelerators_stay_distinct() {
+        assert_ne!(normalise("ctrl+k"), normalise("ctrl+shift+k"));
+        assert_ne!(normalise("ctrl+k"), normalise("alt+k"));
+        assert_ne!(normalise("ctrl+k"), normalise("ctrl+j"));
+    }
+
+    #[test]
+    fn duplicate_modifiers_are_folded() {
+        assert_eq!(normalise("ctrl+ctrl+k"), normalise("ctrl+k"));
     }
 }

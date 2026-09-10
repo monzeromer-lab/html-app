@@ -1,4 +1,4 @@
-//! `clipboard` — text, HTML, images, and file lists (PRD §9.3 Tier 3).
+//! `clipboard` — text, HTML, images, and file lists (docs/api-reference.md, Tier 3).
 //!
 //! Read and write are separate grants because they are different risks: writing places content the
 //! user can see, while reading exposes whatever they copied for any other reason while the document

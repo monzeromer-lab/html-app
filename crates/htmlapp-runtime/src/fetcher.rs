@@ -1,8 +1,8 @@
-//! Fetching pinned remote modules (PRD §8.5).
+//! Fetching pinned remote modules (docs/document-format.md).
 //!
 //! This is the *only* network access the runtime performs on its own behalf, it happens only when a
 //! document's manifest names an import that is not already cached, and the response is refused
-//! unless it matches the integrity hash the manifest pinned. §4.2 N5 — "the runtime never phones
+//! unless it matches the integrity hash the manifest pinned. The goals and non-goals, N5 — "the runtime never phones
 //! home, never auto-updates, never fetches a remote runtime" — holds: nothing here is discretionary.
 
 use htmlapp_engine::imports::{ImportError, ModuleFetcher};

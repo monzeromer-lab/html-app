@@ -1,8 +1,8 @@
-//! Generating the injected shim (PRD §9.1).
+//! Generating the injected shim (docs/bridge.md).
 //!
 //! The shim is built per-document, because which modules exist on the `htmlapp` global is a
 //! function of what that document's manifest was granted. Building it here rather than shipping
-//! one static file is what makes §9.3's "the property does not exist" literally true.
+//! one static file is what makes the API catalog's "the property does not exist" literally true.
 
 use std::collections::BTreeMap;
 
@@ -23,14 +23,16 @@ pub struct ShimConfig {
     pub modules: Vec<String>,
     /// The frozen copy of the grant that the page can read back.
     pub permissions: Value,
-    /// §9.4: adds `stdin`, `stdout`, `stderr`, and `exit`.
+    /// Headless mode: adds `stdin`, `stdout`, `stderr`, and `exit`.
     pub headless: bool,
+    /// Headless mode's `--format`, surfaced to the page as `htmlapp.format`.
+    pub format: Option<String>,
 }
 
 impl ShimConfig {
     /// Derive the shim configuration from a document's granted permissions.
     ///
-    /// `granted` is `None` for a document with no manifest — §11.2 rule 1 — which yields a shim
+    /// `granted` is `None` for a document with no manifest — the security model, rule 1 — which yields a shim
     /// with the transport present but no capability modules at all.
     pub fn for_permissions(
         version: impl Into<String>,
@@ -55,7 +57,14 @@ impl ShimConfig {
             modules,
             permissions,
             headless,
+            format: None,
         }
+    }
+
+    /// Set the `--format` hint (docs/bridge.md).
+    pub fn with_format(mut self, format: Option<String>) -> Self {
+        self.format = format;
+        self
     }
 }
 
@@ -68,6 +77,10 @@ pub fn render(config: &ShimConfig) -> String {
         .replace("__HTMLAPP_PERMISSIONS__", &config.permissions.to_string())
         .replace("__HTMLAPP_MODULES__", &modules.to_string())
         .replace("__HTMLAPP_HEADLESS__", if config.headless { "true" } else { "false" })
+        .replace(
+            "\"__HTMLAPP_FORMAT__\"",
+            &json_string(config.format.as_deref().unwrap_or_default()),
+        )
 }
 
 /// Build `{ "fs": { "read": "invoke", "watch": "stream", ... }, ... }` for the granted modules.

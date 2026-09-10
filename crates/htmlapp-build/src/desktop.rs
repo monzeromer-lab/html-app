@@ -1,6 +1,6 @@
-//! Desktop integration (PRD §7.3 and §13).
+//! Desktop integration (docs/building.md).
 //!
-//! §13 is unusually firm about this: "An install that leaves double-click broken is a failed
+//! Packaging and distribution is unusually firm about this: "An install that leaves double-click broken is a failed
 //! install." So the `.desktop` entry, the MIME registration, and the icons are generated together
 //! and installed together, and `update-desktop-database` and `update-mime-database` are always run.
 
@@ -8,12 +8,12 @@ use std::path::{Path, PathBuf};
 
 use htmlapp_caps::Manifest;
 
-/// The MIME type HTML App owns (§1).
+/// The MIME type HTML App owns (docs/document-format.md).
 pub const MIME_TYPE: &str = "application/hta";
 /// The Linux registration alias.
 pub const MIME_ALIAS: &str = "application/x-hta";
 
-/// The runtime's own `.desktop` entry, exactly as §7.3 specifies.
+/// The runtime's own `.desktop` entry, exactly as desktop integration specifies.
 ///
 /// `%f` is the whole mechanism: the application menu passes no argument and the launcher appears,
 /// while a file manager passes a path and the document runs. One entry serves both paths.
@@ -63,10 +63,10 @@ pub fn mime_package() -> String {
     )
 }
 
-/// A `.desktop` entry for an app built with `htmlapp build` (§13).
+/// A `.desktop` entry for an app built with `htmlapp build` (docs/building.md).
 ///
 /// It names the built binary directly and carries no MIME association: a built app is its own
-/// application, and §7.4 says it "never routes through any of this".
+/// application, and the process and instance model says it "never routes through any of this".
 pub fn app_desktop_entry(manifest: &Manifest, exec: &Path, icon: &str) -> String {
     let name = manifest.display_name();
     let comment = manifest
@@ -136,12 +136,12 @@ pub enum InstallError {
 #[derive(Debug, Default)]
 pub struct InstallReport {
     pub written: Vec<PathBuf>,
-    /// Database refreshes that did not run, with the reason. §13 treats these as part of the
+    /// Database refreshes that did not run, with the reason. packaging and distribution treats these as part of the
     /// install, so a failure here is reported rather than swallowed.
     pub warnings: Vec<String>,
 }
 
-/// Register the runtime with the desktop: `.desktop` entry, MIME type, and icon (§7.3).
+/// Register the runtime with the desktop: `.desktop` entry, MIME type, and icon (docs/building.md).
 pub fn install(paths: &InstallPaths, exec: &Path) -> Result<InstallReport, InstallError> {
     let mut report = InstallReport::default();
 
@@ -160,7 +160,7 @@ pub fn install(paths: &InstallPaths, exec: &Path) -> Result<InstallReport, Insta
     write_file(&icon, ICON_SVG.as_bytes())?;
     report.written.push(icon);
 
-    // §13: "An install that leaves double-click broken is a failed install."
+    // Packaging and distribution: "An install that leaves double-click broken is a failed install."
     for (program, argument) in [
         ("update-desktop-database", paths.applications.clone()),
         (
@@ -230,7 +230,7 @@ pub const ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 /// Extract a manifest icon into a file next to a built app.
 ///
 /// Only `data:` URIs are honoured. A remote icon URL would mean fetching at build time from
-/// somewhere the manifest names, which §4.2 N5 rules out.
+/// somewhere the manifest names, which the goals and non-goals, N5 rules out.
 pub fn write_manifest_icon(manifest: &Manifest, output: &Path) -> Option<PathBuf> {
     let icon = manifest.icon.as_deref()?;
     let (header, payload) = icon.strip_prefix("data:")?.split_once(',')?;

@@ -1,6 +1,6 @@
 //! Modules whose implementation lives in the GPUI shell rather than here.
 //!
-//! `window`, `layer`, `menu`, `palette`, and the native views of §10 are all things only the host's
+//! `window`, `layer`, `menu`, `palette`, and the native views of the native views design are all things only the host's
 //! UI thread can do. Rather than give this crate a dependency on GPUI — which would drag the whole
 //! renderer into every build, including headless — those modules forward across a [`HostBridge`]
 //! that `htmlapp-runtime` implements.
@@ -14,7 +14,7 @@ use serde_json::Value;
 /// Implemented by the shell for the modules it owns.
 ///
 /// Async because some of these calls resolve on a *person*: `dialog.confirm` cannot answer until
-/// the user clicks something. A synchronous signature would force the bridge worker to block on the
+/// The user clicks something. A synchronous signature would force the bridge worker to block on the
 /// render loop, which is the one thing that must never happen — the render loop is what draws the
 /// dialog being waited on.
 pub trait HostBridge: Send + Sync + 'static {

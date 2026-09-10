@@ -1,11 +1,11 @@
-//! The consent manager window (PRD §11.2 rule 6).
+//! The consent manager window (docs/security.md, rule 6).
 //!
 //! "`htmlapp permissions` lists every consented file and what it holds. `htmlapp permissions revoke
 //! <file>` clears it. A native settings window does the same."
 //!
 //! Revocation is immediate and unconfirmed on purpose. Taking a permission *away* is the safe
 //! direction, and putting a confirmation step in front of it would train people to click through
-//! the dialogs that actually matter.
+//! The dialogs that actually matter.
 
 use std::sync::Arc;
 

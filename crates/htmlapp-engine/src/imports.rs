@@ -1,10 +1,10 @@
-//! Import maps without a build step (PRD §8.5).
+//! Import maps without a build step (docs/document-format.md).
 //!
 //! A document may name remote ES modules. They are fetched once, verified against the integrity
 //! hash the manifest pins them to, cached under `~/.cache/htmlapp/modules/<sha256>`, and served
 //! from that cache forever after — so a single file can use real libraries and still start offline.
 //!
-//! §17 open question 5 asks whether a cached module should ever be revalidated. It should not:
+//! The open questions, open question 5 asks whether a cached module should ever be revalidated. It should not:
 //! revalidation would make the same file behave differently on different days, and the integrity
 //! hash already pins exactly one acceptable body. `htmlapp cache purge` is the explicit escape.
 

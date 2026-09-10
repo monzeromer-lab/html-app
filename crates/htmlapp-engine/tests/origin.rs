@@ -1,4 +1,4 @@
-//! The `htmlapp://app/` origin, the injected CSP, and import pinning (PRD §8.4, §8.5, §11.2).
+//! The `htmlapp://app/` origin, the injected CSP, and import pinning (docs/document-format.md and docs/security.md).
 
 use std::collections::BTreeMap;
 
@@ -13,7 +13,7 @@ fn manifest(json: &str) -> Manifest {
     Manifest::from_json(json).expect("test manifest must parse")
 }
 
-// --- §8.4: what the origin serves ---
+// --- the origin and loading rules: what the origin serves ---
 
 #[test]
 fn index_is_served_at_root_and_index_html() {
@@ -29,7 +29,7 @@ fn index_is_served_at_root_and_index_html() {
     }
 }
 
-/// §8.4: "the default is strictly single-file".
+/// The origin and loading rules: "the default is strictly single-file".
 #[test]
 fn siblings_are_not_served_without_the_opt_in() {
     let temp = tempfile::tempdir().unwrap();
@@ -78,7 +78,7 @@ fn asset_root_cannot_be_escaped() {
     assert_eq!(resolver.resolve("/link.txt"), Response::Forbidden);
 }
 
-// --- §11.2 rule 8: CSP ---
+// --- the security model, rule 8: CSP ---
 
 /// The control that actually matters: `connect-src` is pinned to the manifest's allow-list.
 #[test]
@@ -130,7 +130,7 @@ fn csp_is_injected_even_without_a_head() {
     }
 }
 
-/// §11.2 rule 8 allows an override, but it must be a deliberate act recorded in the document.
+/// The security model, rule 8 allows an override, but it must be a deliberate act recorded in the document.
 #[test]
 fn manifest_can_override_the_csp() {
     let document = Document::from_bytes(
@@ -143,7 +143,7 @@ fn manifest_can_override_the_csp() {
     assert!(prepared.contains("default-src &#x27;none&#x27;") || prepared.contains("default-src 'none'"));
 }
 
-// --- §4.2 N2: not a browser ---
+// --- the goals and non-goals, N2: not a browser ---
 
 #[test]
 fn navigation_is_confined_to_the_documents_own_origin() {
@@ -170,7 +170,7 @@ fn wildcard_subdomains_do_not_match_the_apex_or_a_suffix_lookalike() {
     assert!(allows_navigation("https://deep.api.example.com/x", &granted));
 }
 
-// --- §8.5: import maps ---
+// --- import maps ---
 
 struct StubFetcher(Vec<u8>);
 
@@ -227,7 +227,7 @@ fn module_is_fetched_verified_then_served_from_cache() {
     assert!(resolved[0].1.starts_with("/__modules__/"));
     assert!(cache.is_cached(&hash));
 
-    // §8.5: "then serves them from cache offline forever after".
+    // The import map: "then serves them from cache offline forever after".
     cache
         .resolve_all(&imports_of(&hash), &ExplodingFetcher)
         .expect("second run must not touch the network");
@@ -243,7 +243,7 @@ fn module_is_fetched_verified_then_served_from_cache() {
     }
 }
 
-/// §11.3: "Supply chain via `imports` — Integrity hashes required."
+/// The threat model: "Supply chain via `imports` — Integrity hashes required."
 #[test]
 fn module_whose_body_does_not_match_its_pin_is_rejected() {
     let temp = tempfile::tempdir().unwrap();
@@ -294,7 +294,7 @@ fn cache_purge_empties_it() {
     assert!(!cache.is_cached(&hash));
 }
 
-// --- §9.1: blob URLs, so bulk bytes never pass through JSON ---
+// --- the bridge transport: blob URLs, so bulk bytes never pass through JSON ---
 
 #[test]
 fn blob_tokens_are_served_and_scoped_to_the_token() {

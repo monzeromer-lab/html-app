@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!--
+  UC5 — a screenshot annotator.
+
+  Exercises: portal Screenshot, clipboard images, canvas, dialog.save, fs.
+
+  The screenshot is taken by the *compositor*, through xdg-desktop-portal, so the
+  approval you see is your desktop's own. This document never gets a capture it did
+  not ask for in front of you.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script type="application/htmlapp+json">
+{
+  "name": "Screenshot Annotator",
+  "id": "dev.htmlapp.annotator",
+  "version": "1.0.0",
+  "window": { "title": "Screenshot Annotator", "width": 1000, "height": 720 },
+  "permissions": {
+    "portal":    ["screenshot"],
+    "clipboard": ["write"],
+    "dialog":    true,
+    "fs":        { "write": ["~/Pictures/**", "/tmp/**"], "read": ["/tmp/**"] }
+  }
+}
+</script>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; height: 100vh;
+         display: flex; flex-direction: column; }
+  .bar { display: flex; gap: .5rem; align-items: center; padding: .7rem 1rem;
+         border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+  button { font: inherit; padding: .35rem .8rem; border-radius: 6px; cursor: pointer; color: inherit;
+           border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; }
+  button:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  input[type=color] { width: 2rem; height: 2rem; padding: 0; border: none; background: none; }
+  .stage { flex: 1; overflow: auto; display: grid; place-items: center;
+           background: repeating-conic-gradient(#0002 0 25%, transparent 0 50%) 0 0/16px 16px; }
+  canvas { max-width: 100%; cursor: crosshair; box-shadow: 0 2px 12px #0004; }
+  .hint { padding: 2rem; opacity: .7; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <button class="primary" id="capture">Take screenshot</button>
+    <input type="color" id="color" value="#ff3b30" title="Annotation colour">
+    <button id="undo">Undo</button>
+    <button id="copy">Copy</button>
+    <button id="save">Save as…</button>
+    <span id="status" style="opacity:.7"></span>
+  </div>
+  <div class="stage" id="stage">
+    <div class="hint">Take a screenshot to start annotating. Drag on the image to draw.</div>
+  </div>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const stage = $('stage');
+  let canvas = null, ctx = null;
+  const strokes = [];
+
+  function redraw(image) {
+    ctx.drawImage(image, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    for (const stroke of strokes) {
+      ctx.strokeStyle = stroke.color;
+      ctx.beginPath();
+      stroke.points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.stroke();
+    }
+  }
+
+  $('capture').onclick = async () => {
+    $('status').textContent = 'Waiting for your desktop…';
+    let uri;
+    try {
+      // Interactive: the compositor lets you pick a region or a window.
+      uri = await htmlapp.portal.screenshot({ interactive: true });
+    } catch (e) {
+      $('status').textContent = e.code === 'cancelled' ? 'Cancelled' : `${e.code}: ${e.message}`;
+      return;
+    }
+
+    // The portal hands back a file URI. Taking the screenshot authorised reading it,
+    // so fs.blob can mint a URL the page fetches directly — the bytes never go
+    // through the bridge as JSON.
+    const path = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+    const blob = await htmlapp.fs.blob({ path });
+
+    const image = new Image();
+    image.onload = () => {
+      strokes.length = 0;
+      canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      ctx = canvas.getContext('2d');
+      stage.replaceChildren(canvas);
+      redraw(image);
+      wireDrawing(image);
+      $('status').textContent = `${image.naturalWidth}×${image.naturalHeight}`;
+    };
+    image.src = blob;
+  };
+
+  function wireDrawing(image) {
+    let drawing = null;
+    const at = event => {
+      const rect = canvas.getBoundingClientRect();
+      const scale = canvas.width / rect.width;
+      return { x: (event.clientX - rect.left) * scale, y: (event.clientY - rect.top) * scale };
+    };
+
+    canvas.onpointerdown = event => {
+      canvas.setPointerCapture(event.pointerId);
+      drawing = { color: $('color').value, points: [at(event)] };
+      strokes.push(drawing);
+    };
+    canvas.onpointermove = event => {
+      if (!drawing) return;
+      drawing.points.push(at(event));
+      redraw(image);
+    };
+    canvas.onpointerup = () => { drawing = null; };
+
+    $('undo').onclick = () => { strokes.pop(); redraw(image); };
+  }
+
+  const toDataUri = () => canvas?.toDataURL('image/png');
+
+  $('copy').onclick = async () => {
+    const data = toDataUri();
+    if (!data) return;
+    await htmlapp.clipboard.writeImage({ data });
+    $('status').textContent = 'Copied to clipboard';
+  };
+
+  $('save').onclick = async () => {
+    const data = toDataUri();
+    if (!data) return;
+
+    // The system's own save dialog. Whatever the user picks is writable, regardless
+    // of the manifest's globs — choosing it *is* the grant.
+    const path = await htmlapp.dialog.save({
+      title: 'Save annotated screenshot',
+      defaultName: 'annotated.png',
+      filters: [{ name: 'PNG image', extensions: ['png'] }],
+    });
+    if (!path) return;
+
+    await htmlapp.fs.write({
+      path,
+      contents: data.split(',')[1],
+      encoding: 'binary',
+    });
+    $('status').textContent = `Saved to ${path}`;
+  };
+</script>
+</body>
+</html>
