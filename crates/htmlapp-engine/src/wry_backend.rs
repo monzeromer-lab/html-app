@@ -103,6 +103,15 @@ pub fn pump_events() {
 /// A WebKitGTK view embedded in the host window.
 pub struct WryEngine {
     webview: wry::WebView,
+    /// Shapes the page's child window so the host can paint over it (§4.2 G2).
+    ///
+    /// `RefCell` rather than a lock: the engine has main-thread affinity and is only ever reached
+    /// from the frame loop, so there is no contention to guard against.
+    occluder: std::cell::RefCell<Option<crate::occlusion::Occluder>>,
+    /// The host window, kept so the occluder can be built lazily once the child window exists.
+    parent: std::cell::Cell<u32>,
+    /// The page's current extent, needed to reset the shape before subtracting holes.
+    extent: std::cell::Cell<(u16, u16)>,
 }
 
 impl WryEngine {
@@ -149,6 +158,38 @@ impl WryEngine {
                 }
                 allowed
             })
+            // §9.3 `dnd`: dropping files onto a tool is the common case, and the drop lands on
+            // the page's own child window rather than on the host's.
+            .with_drag_drop_handler({
+                let on_event = Arc::clone(&callbacks.on_event);
+                move |event: wry::DragDropEvent| {
+                    let translated = match event {
+                        wry::DragDropEvent::Enter { paths, position } => {
+                            crate::DragDropEvent::Enter {
+                                paths,
+                                x: position.0 as f32,
+                                y: position.1 as f32,
+                            }
+                        }
+                        wry::DragDropEvent::Over { position } => crate::DragDropEvent::Over {
+                            x: position.0 as f32,
+                            y: position.1 as f32,
+                        },
+                        wry::DragDropEvent::Drop { paths, position } => {
+                            crate::DragDropEvent::Drop {
+                                paths,
+                                x: position.0 as f32,
+                                y: position.1 as f32,
+                            }
+                        }
+                        _ => crate::DragDropEvent::Leave,
+                    };
+                    on_event(EngineEvent::DragDrop(translated));
+                    // `false` lets the page see the drop too, so a document can use ordinary HTML
+                    // drag events if it prefers them to the bridge.
+                    false
+                }
+            })
             // A page that calls window.open() must not get an unmanaged, ungoverned second window.
             .with_new_window_req_handler(|url: String, _features| {
                 tracing::info!(%url, "refused window.open; use htmlapp.window.open instead");
@@ -159,7 +200,15 @@ impl WryEngine {
             .build_as_child(parent)
             .map_err(|e| EngineError::Startup(describe_build_failure(&e)))?;
 
-        Ok(Self { webview })
+        Ok(Self {
+            webview,
+            occluder: std::cell::RefCell::new(None),
+            parent: std::cell::Cell::new(0),
+            extent: std::cell::Cell::new((
+                bounds.width.max(1.0) as u16,
+                bounds.height.max(1.0) as u16,
+            )),
+        })
     }
 }
 
@@ -196,12 +245,16 @@ impl WryEngine {
         callbacks: EngineCallbacks,
         bounds: ViewRect,
     ) -> Result<Self> {
-        Self::new(
+        let engine = Self::new(
             &ForeignX11Window(window_id as std::ffi::c_ulong),
             config,
             callbacks,
             bounds,
-        )
+        )?;
+        // Remembered so the occluder can find the page's child window on a later frame — it does
+        // not exist yet at the instant `build_as_child` returns.
+        engine.parent.set(window_id);
+        Ok(engine)
     }
 }
 
@@ -248,7 +301,12 @@ impl WryEngine {
         // Kept alive for as long as the engine is: dropping the window destroys the webview.
         std::mem::forget(window);
 
-        Ok(Self { webview })
+        Ok(Self {
+            webview,
+            occluder: std::cell::RefCell::new(None),
+            parent: std::cell::Cell::new(0),
+            extent: std::cell::Cell::new((1, 1)),
+        })
     }
 }
 
@@ -310,9 +368,38 @@ impl WebEngine for WryEngine {
     }
 
     fn set_bounds(&self, bounds: ViewRect) -> Result<()> {
+        self.extent.set((
+            bounds.width.max(1.0) as u16,
+            bounds.height.max(1.0) as u16,
+        ));
         self.webview
             .set_bounds(to_wry_rect(bounds))
             .map_err(|e| EngineError::Script(e.to_string()))
+    }
+
+    /// §4.2 G2: let the host paint over the page.
+    fn set_occlusions(&self, rects: &[ViewRect]) -> Result<bool> {
+        let parent = self.parent.get();
+        if parent == 0 {
+            return Ok(false);
+        }
+
+        let mut slot = self.occluder.borrow_mut();
+        if slot.is_none() {
+            // Built lazily: the page's child window is created by `wry` inside `build_as_child`
+            // and is not necessarily visible to a fresh X connection until a little later.
+            *slot = crate::occlusion::Occluder::new(parent);
+        }
+        let Some(occluder) = slot.as_mut() else {
+            return Ok(false);
+        };
+
+        occluder.set_occlusions(self.extent.get(), &crate::occlusion::merge(rects));
+        Ok(true)
+    }
+
+    fn supports_occlusion(&self) -> bool {
+        self.parent.get() != 0 && crate::occlusion::is_supported()
     }
 
     fn set_visible(&self, visible: bool) -> Result<()> {

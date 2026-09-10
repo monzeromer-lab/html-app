@@ -12,6 +12,7 @@ pub mod fetcher;
 pub mod headless;
 pub mod host;
 pub mod session;
+pub mod single_instance;
 pub mod transport;
 
 pub use host::{HeadlessHost, HostCommand, HostState, RuntimeHost, ViewState};

@@ -12,10 +12,20 @@ use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture};
 use serde_json::Value;
 
 /// Implemented by the shell for the modules it owns.
+///
+/// Async because some of these calls resolve on a *person*: `dialog.confirm` cannot answer until
+/// the user clicks something. A synchronous signature would force the bridge worker to block on the
+/// render loop, which is the one thing that must never happen — the render loop is what draws the
+/// dialog being waited on.
 pub trait HostBridge: Send + Sync + 'static {
     /// Perform one host-side call. Returning `MethodNotFound` is the correct answer for a method
     /// this host does not implement — a headless host implements almost none of them.
-    fn call(&self, module: &str, method: &str, params: Value) -> Result<Value, RpcError>;
+    fn call<'a>(
+        &'a self,
+        module: &'a str,
+        method: &'a str,
+        params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>>;
 }
 
 /// Forwards one module's calls to the host.
@@ -36,7 +46,7 @@ impl ApiHandler for HostModule {
     }
 
     fn invoke<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<Value, RpcError>> {
-        Box::pin(async move { self.host.call(self.name, method, params) })
+        Box::pin(async move { self.host.call(self.name, method, params).await })
     }
 }
 
@@ -44,9 +54,16 @@ impl ApiHandler for HostModule {
 pub struct NullHost;
 
 impl HostBridge for NullHost {
-    fn call(&self, module: &str, method: &str, _params: Value) -> Result<Value, RpcError> {
-        Err(RpcError::unsupported(format!(
-            "`{module}.{method}` needs a window; this document is running headless"
-        )))
+    fn call<'a>(
+        &'a self,
+        module: &'a str,
+        method: &'a str,
+        _params: Value,
+    ) -> BoxFuture<'a, Result<Value, RpcError>> {
+        Box::pin(async move {
+            Err(RpcError::unsupported(format!(
+                "`{module}.{method}` needs a window; this document is running headless"
+            )))
+        })
     }
 }

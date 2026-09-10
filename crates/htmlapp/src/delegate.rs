@@ -115,6 +115,30 @@ impl LauncherDelegate for CliDelegate {
         }
     }
 
+    fn open_url(&self, url: &str) {
+        if let Err(error) = open::that_detached(url) {
+            tracing::warn!(%error, %url, "could not open the link");
+        }
+    }
+
+    fn revoke_permissions(&self, path: &Path) {
+        // Revoked by path *and* by current content hash, so both a moved file and an edited one
+        // are covered — the same thing `htmlapp permissions revoke` does.
+        let Ok(mut store) = htmlapp_caps::ConsentStore::load_default() else {
+            return;
+        };
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let mut removed = store.revoke_path(&canonical);
+        if let Ok(document) = htmlapp_caps::Document::load(&canonical) {
+            removed += store.revoke_hash(&document.hash);
+        }
+        if let Err(error) = store.save_default() {
+            tracing::error!(%error, "could not save the consent store");
+        } else {
+            tracing::info!(removed, path = %canonical.display(), "revoked permissions");
+        }
+    }
+
     fn reveal(&self, path: &Path) {
         let target: PathBuf = if path.is_dir() {
             path.to_path_buf()
@@ -134,6 +158,16 @@ pub fn run_launcher(open_immediately: bool, permissions_ui: bool) -> Result<()> 
     if permissions_ui {
         return htmlapp_runtime::app::run_permissions_manager().map_err(Into::into);
     }
+
+    // §7.4: "The launcher is single-instance." Documents are the opposite — one process each — so
+    // the guard applies only here. Held for the life of the process.
+    let Some(_lock) = htmlapp_runtime::single_instance::acquire() else {
+        eprintln!(
+            "htmlapp: a launcher is already running.\n\
+             Open a document with `htmlapp <file.hta>`, or use the running window."
+        );
+        return Ok(());
+    };
 
     if open_immediately {
         // The desktop entry's "Open an .hta file…" action: go straight to the chooser, and only

@@ -44,6 +44,27 @@ struct PropertyParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct SetPropertyParams {
+    #[serde(default)]
+    bus: Bus,
+    destination: String,
+    path: String,
+    #[serde(rename = "iface")]
+    interface: String,
+    property: String,
+    value: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OwnNameParams {
+    #[serde(default)]
+    bus: Bus,
+    name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct IntrospectParams {
     #[serde(default)]
     bus: Bus,
@@ -151,6 +172,80 @@ impl DbusModule {
         Ok(json!(xml))
     }
 
+    /// Write a property.
+    ///
+    /// D-Bus properties are typed, and `Set` takes a variant. JSON does not carry the signature, so
+    /// the value's JSON shape decides: a bool becomes `b`, an integer `x`, a float `d`, a string
+    /// `s`. Anything else is refused rather than guessed at, because sending the wrong type to a
+    /// system service is not a failure that surfaces gracefully.
+    async fn set_property(&self, params: Value) -> Result<Value, RpcError> {
+        let params: SetPropertyParams = decode("dbus.set", params)?;
+        self.ctx.check_dbus(params.bus.is_system(), &params.destination)?;
+
+        let value: zbus::zvariant::Value<'_> = match &params.value {
+            Value::Bool(b) => (*b).into(),
+            Value::Number(n) if n.is_i64() => n.as_i64().unwrap().into(),
+            Value::Number(n) => n.as_f64().unwrap_or(0.0).into(),
+            Value::String(s) => s.as_str().into(),
+            other => {
+                return Err(RpcError::invalid_params(format!(
+                    "cannot infer a D-Bus signature for {other}; only booleans, integers, floats, \
+                     and strings can be written"
+                )));
+            }
+        };
+
+        let connection = self.connect(params.bus).await?;
+        connection
+            .call_method(
+                Some(params.destination.as_str()),
+                params.path.as_str(),
+                Some("org.freedesktop.DBus.Properties"),
+                "Set",
+                &(
+                    params.interface.as_str(),
+                    params.property.as_str(),
+                    zbus::zvariant::Value::from(value),
+                ),
+            )
+            .await
+            .map_err(|e| RpcError::new(htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+        Ok(Value::Null)
+    }
+
+    /// Take a well-known bus name, so other clients can address this document.
+    async fn own_name(&self, params: Value) -> Result<Value, RpcError> {
+        let params: OwnNameParams = decode("dbus.ownName", params)?;
+
+        // Owning a name is not the same act as calling one, and is governed by its own list: a
+        // document that can call NetworkManager must not thereby be able to *impersonate* it.
+        let Some(dbus) = self.ctx.permissions().dbus.as_ref() else {
+            return Err(RpcError::denied("this document was not granted `dbus`"));
+        };
+        if !dbus.own.iter().any(|name| name == &params.name) {
+            return Err(RpcError::denied(format!(
+                "`{}` is not in this document's `dbus.own` list ({})",
+                params.name,
+                if dbus.own.is_empty() { "empty".to_string() } else { dbus.own.join(", ") }
+            )));
+        }
+
+        let connection = self.connect(params.bus).await?;
+        connection
+            .request_name(params.name.as_str())
+            .await
+            .map_err(|e| {
+                RpcError::new(
+                    htmlapp_bridge::ErrorCode::OperationFailed,
+                    format!("could not take `{}`: {e}", params.name),
+                )
+            })?;
+        // The name is held for as long as the connection lives, and the connection is held by this
+        // module, which lives as long as the document.
+        std::mem::forget(connection);
+        Ok(Value::Null)
+    }
+
     async fn get_property(&self, params: Value) -> Result<Value, RpcError> {
         let params: PropertyParams = decode("dbus.get", params)?;
         self.ctx.check_dbus(params.bus.is_system(), &params.destination)?;
@@ -226,11 +321,12 @@ impl ApiHandler for DbusModule {
                 "get" => self.get_property(params).await,
                 #[cfg(feature = "tier2")]
                 "introspect" => self.introspect(params).await,
-                "set" | "ownName" => Err(RpcError::unsupported(
-                    "writing D-Bus properties and owning a bus name are not implemented yet",
-                )),
+                #[cfg(feature = "tier2")]
+                "set" => self.set_property(params).await,
+                #[cfg(feature = "tier2")]
+                "ownName" => self.own_name(params).await,
                 #[cfg(not(feature = "tier2"))]
-                "call" | "get" | "introspect" => {
+                "call" | "get" | "introspect" | "set" | "ownName" => {
                     let _ = &params;
                     Err(RpcError::unsupported("this build has no D-Bus support"))
                 }

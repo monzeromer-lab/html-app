@@ -4,10 +4,7 @@
 //! million elements; this keeps one row of elements per visible line and indexes into a flat store,
 //! so memory is proportional to the viewport rather than the dataset.
 
-use gpui::{
-    Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px, rems,
-    uniform_list,
-};
+use gpui::{AnyElement, IntoElement, ParentElement, SharedString, Styled, div, px, rems, rgb, rgba};
 use serde_json::Value;
 
 use crate::{NativeView, ViewKind};
@@ -25,6 +22,8 @@ pub struct Column {
 /// A virtualized table.
 pub struct TableView {
     columns: Vec<Column>,
+    /// Index of the first row to draw. The page scrolls the placeholder; the host scrolls this.
+    scroll_top: usize,
     /// Rows as flat strings: the view never needs the original types, and storing them as text
     /// avoids re-formatting a value every time it scrolls back into sight.
     rows: Vec<Vec<SharedString>>,
@@ -41,6 +40,7 @@ impl TableView {
     pub fn new() -> Self {
         Self {
             columns: Vec::new(),
+            scroll_top: 0,
             rows: Vec::new(),
             selected: None,
         }
@@ -59,6 +59,7 @@ impl TableView {
         self.columns = columns;
         self.rows.clear();
         self.selected = None;
+        self.scroll_top = 0;
     }
 
     /// Append rows. Values are stringified once, here.
@@ -71,6 +72,7 @@ impl TableView {
     pub fn clear(&mut self) {
         self.rows.clear();
         self.selected = None;
+        self.scroll_top = 0;
     }
 
     /// Turn one JSON row — object or array — into display strings, column by column.
@@ -158,6 +160,9 @@ impl NativeView for TableView {
         if let Some(selected) = props.get("selected").and_then(|s| s.as_u64()) {
             self.selected = Some(selected as usize);
         }
+        if let Some(top) = props.get("scrollTop").and_then(|s| s.as_u64()) {
+            self.scroll_top = (top as usize).min(self.rows.len());
+        }
     }
 
     fn resize(&mut self, _width: f32, _height: f32) {
@@ -165,65 +170,68 @@ impl NativeView for TableView {
     }
 }
 
-impl Render for TableView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let columns = self.columns.clone();
-        let rows = self.rows.clone();
-        let selected = self.selected;
-        let count = rows.len();
+impl TableView {
+    /// Build the element for this table.
+    ///
+    /// A free method rather than a `Render` impl so the host can draw the view straight out of its
+    /// own state, without the view having to be a GPUI entity with a `Context` of its own.
+    ///
+    /// `visible_height` bounds how many rows are built. That is the virtualization: cost is
+    /// proportional to the viewport, not to the dataset, which is the whole reason this is not a
+    /// `<table>` (§10).
+    pub fn element(&self, visible_height: f32) -> AnyElement {
+        let capacity = ((visible_height / ROW_HEIGHT).ceil() as usize + 1).min(self.rows.len());
+        let first = self.scroll_top.min(self.rows.len().saturating_sub(capacity));
 
         let header = div()
             .flex()
             .h(px(ROW_HEIGHT))
             .border_b_1()
-            .children(columns.iter().map(|column| {
-                let mut cell = div()
+            .border_color(rgba(0xffffff20))
+            .children(self.columns.iter().map(|column| {
+                let cell = div()
                     .px_2()
                     .overflow_hidden()
+                    .text_color(rgba(0xffffff99))
                     .child(SharedString::from(column.name.clone()));
-                cell = match column.width {
+                match column.width {
                     Some(width) => cell.w(px(width)),
                     None => cell.flex_1(),
-                };
-                cell
+                }
             }));
 
-        let body = uniform_list(
-            "table-rows",
-            count,
-            cx.processor(move |_this, range: std::ops::Range<usize>, _window, _cx| {
-                // Only the visible slice is ever built — this is the whole point of the view.
-                range
-                    .map(|index| {
-                        let row = &rows[index];
-                        let mut line = div().flex().h(px(ROW_HEIGHT));
-                        if selected == Some(index) {
-                            line = line.bg(gpui::rgba(0x4c8dff26));
-                        }
-                        line
-                            .children(columns.iter().enumerate().map(|(column_index, column)| {
-                                let mut cell = div()
-                                    .px_2()
-                                    .overflow_hidden()
-                                    .child(row.get(column_index).cloned().unwrap_or_default());
-                                cell = match column.width {
-                                    Some(width) => cell.w(px(width)),
-                                    None => cell.flex_1(),
-                                };
-                                cell
-                            }))
-                    })
-                    .collect::<Vec<_>>()
-            }),
-        )
-        .flex_1();
+        let rows = self.rows[first..(first + capacity).min(self.rows.len())]
+            .iter()
+            .enumerate()
+            .map(|(offset, row)| {
+                let index = first + offset;
+                let mut line = div().flex().h(px(ROW_HEIGHT));
+                if self.selected == Some(index) {
+                    line = line.bg(rgba(0x4c8dff33));
+                }
+                line.children(self.columns.iter().enumerate().map(|(column_index, column)| {
+                    let cell = div()
+                        .px_2()
+                        .overflow_hidden()
+                        .child(row.get(column_index).cloned().unwrap_or_default());
+                    match column.width {
+                        Some(width) => cell.w(px(width)),
+                        None => cell.flex_1(),
+                    }
+                }))
+            })
+            .collect::<Vec<_>>();
 
         div()
             .flex()
             .flex_col()
             .size_full()
+            .bg(rgb(0x14161a))
+            .text_color(rgb(0xdcdfe4))
             .text_size(rems(0.8125))
+            .font_family("monospace")
             .child(header)
-            .child(body)
+            .children(rows)
+            .into_any_element()
     }
 }

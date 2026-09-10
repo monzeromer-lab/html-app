@@ -23,6 +23,9 @@
 
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::wrapper::ConnectionExt as _;
+
+use crate::ViewRect;
 
 /// A reusable X11 connection for locating this process's window.
 ///
@@ -156,4 +159,74 @@ fn title_of(connection: &impl Connection, window: xproto::Window) -> Option<Stri
         .reply()
         .ok()?;
     String::from_utf8(reply.value).ok()
+}
+
+/// Set `_NET_WM_WINDOW_OPACITY` on a window (§9.3 `window.setOpacity`).
+///
+/// GPUI exposes no window-opacity API. Every Linux toolkit implements this by setting the property
+/// the compositor reads, which is what this does — so it works wherever a compositing WM is running
+/// and is a no-op where one is not.
+pub fn set_window_opacity(window: u32, opacity: f32) {
+    let Ok((connection, _)) = x11rb::connect(None) else {
+        return;
+    };
+    let Some(atom) = intern(&connection, b"_NET_WM_WINDOW_OPACITY") else {
+        return;
+    };
+
+    let value = (opacity.clamp(0.0, 1.0) as f64 * u32::MAX as f64) as u32;
+    let _ = connection.change_property32(
+        xproto::PropMode::REPLACE,
+        window,
+        atom,
+        xproto::AtomEnum::CARDINAL,
+        &[value],
+    );
+    let _ = connection.flush();
+}
+
+/// Restrict where a window accepts input (§9.3 `window.setInputRegion`).
+///
+/// `None` restores the whole window. Anything else makes every pixel outside the given rectangles
+/// click-through, which is what a desktop widget or an overlay bar wants: visible, but not in the
+/// way of whatever is behind it.
+pub fn set_input_region(window: u32, rects: Option<&[ViewRect]>, extent: (f32, f32)) {
+    use x11rb::protocol::shape::{ConnectionExt as _, SK, SO};
+
+    let Ok((connection, _)) = x11rb::connect(None) else {
+        return;
+    };
+
+    let rectangles: Vec<xproto::Rectangle> = match rects {
+        None => vec![xproto::Rectangle {
+            x: 0,
+            y: 0,
+            width: extent.0.max(1.0) as u16,
+            height: extent.1.max(1.0) as u16,
+        }],
+        Some(rects) => rects
+            .iter()
+            .filter_map(|rect| {
+                let width = rect.width.round().max(0.0) as u16;
+                let height = rect.height.round().max(0.0) as u16;
+                (width > 0 && height > 0).then_some(xproto::Rectangle {
+                    x: rect.x.round() as i16,
+                    y: rect.y.round() as i16,
+                    width,
+                    height,
+                })
+            })
+            .collect(),
+    };
+
+    let _ = connection.shape_rectangles(
+        SO::SET,
+        SK::INPUT,
+        xproto::ClipOrdering::UNSORTED,
+        window,
+        0,
+        0,
+        &rectangles,
+    );
+    let _ = connection.flush();
 }

@@ -189,7 +189,9 @@ impl ApiHandler for DialogModule {
                 "pickFolder" => self.pick_folder(params).await,
 
                 // Painted by the host so they are modal to this document's window.
-                "message" | "confirm" | "prompt" => self.host.call("dialog", method, params),
+                "message" | "confirm" | "prompt" => {
+                    self.host.call("dialog", method, params).await
+                }
 
                 #[cfg(not(feature = "tier2"))]
                 "open" | "save" | "pickFolder" => {

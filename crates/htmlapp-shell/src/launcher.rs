@@ -68,7 +68,16 @@ pub trait LauncherDelegate: Send + Sync + 'static {
     fn copy_to_clipboard(&self, text: &str);
     /// Reveal a path in the user's file manager.
     fn reveal(&self, path: &Path);
+    /// Open a URL in the user's browser — the identity links in §7.2.
+    fn open_url(&self, url: &str);
+    /// Forget every stored permission decision for a document (§11.2 rule 6).
+    fn revoke_permissions(&self, path: &Path);
 }
+
+/// Where the identity links in §7.2 point.
+pub const REPOSITORY_URL: &str = "https://github.com/monzeromer-lab/htmlapp";
+pub const DOCS_URL: &str = "https://github.com/monzeromer-lab/htmlapp/tree/main/docs";
+pub const LICENSE_URL: &str = "https://www.apache.org/licenses/LICENSE-2.0";
 
 /// One line of the diagnostics strip (§7.2).
 #[derive(Debug, Clone)]
@@ -179,6 +188,8 @@ pub struct Launcher {
     examples: Vec<Example>,
     consent: ConsentStore,
     selected: usize,
+    /// Which recent has its context menu open, and where it was summoned.
+    context_menu: Option<(usize, gpui::Point<gpui::Pixels>)>,
     focus: FocusHandle,
 }
 
@@ -196,6 +207,7 @@ impl Launcher {
             examples: load_examples(),
             consent: ConsentStore::load_default().unwrap_or_default(),
             selected: 0,
+            context_menu: None,
             focus: cx.focus_handle(),
         }
     }
@@ -345,6 +357,7 @@ impl Render for Launcher {
                     .child(self.render_examples(&theme, cx)),
             )
             .child(self.render_diagnostics(&theme, cx))
+            .children(self.render_context_menu(&theme, cx))
     }
 }
 
@@ -408,6 +421,15 @@ impl Launcher {
                                     ))),
                             ),
                     ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap_3()
+                    .text_size(rems(0.75))
+                    .child(link("repo-link", "Repository", REPOSITORY_URL, theme, cx))
+                    .child(link("docs-link", "Documentation", DOCS_URL, theme, cx))
+                    .child(link("license-link", "Apache-2.0", LICENSE_URL, theme, cx)),
             )
             .child(
                 div()
@@ -488,6 +510,14 @@ impl Launcher {
                         delegate.open_document(&path);
                         cx.notify();
                     }))
+                    .on_mouse_down(
+                        gpui::MouseButton::Right,
+                        cx.listener(move |this, event: &gpui::MouseDownEvent, _, cx| {
+                            this.selected = index;
+                            this.context_menu = Some((index, event.position));
+                            cx.notify();
+                        }),
+                    )
                     .child(
                         div()
                             .flex()
@@ -633,6 +663,100 @@ impl Launcher {
             .child(list)
     }
 
+    /// The recents context menu §7.2 asks for.
+    fn render_context_menu(
+        &self,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> Option<impl IntoElement> {
+        let (index, position) = self.context_menu?;
+        let entry = self.live_recents().get(index)?.path.clone();
+        let theme = *theme;
+
+        let reveal_path = entry.clone();
+        let revoke_path = entry.clone();
+        let remove_path = entry;
+        let reveal_delegate = Arc::clone(&self.delegate);
+        let revoke_delegate = Arc::clone(&self.delegate);
+
+        let item = |id: &'static str,
+                    label: &'static str,
+                    danger: bool,
+                    handler: Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>| {
+            div()
+                .id(id)
+                .px_3()
+                .py_1p5()
+                .cursor_pointer()
+                .text_color(if danger { theme.danger } else { theme.text })
+                .hover(|style| style.bg(theme.surface_hover))
+                .on_click(handler)
+                .child(label)
+        };
+
+        Some(
+            // A full-window catcher, so clicking anywhere else dismisses the menu.
+            div()
+                .id("context-scrim")
+                .absolute()
+                .left_0()
+                .top_0()
+                .size_full()
+                .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                }))
+                .child(
+                    div()
+                        .absolute()
+                        .left(position.x)
+                        .top(position.y)
+                        .min_w(px(200.0))
+                        .py_1()
+                        .rounded(px(8.0))
+                        .border_1()
+                        .border_color(theme.border)
+                        .bg(theme.surface)
+                        .text_size(rems(0.8125))
+                        .child(item(
+                            "ctx-reveal",
+                            "Reveal in file manager",
+                            false,
+                            Box::new(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                reveal_delegate.reveal(&reveal_path);
+                                this.context_menu = None;
+                                cx.notify();
+                            })),
+                        ))
+                        .child(item(
+                            "ctx-revoke",
+                            "Revoke permissions",
+                            true,
+                            Box::new(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                revoke_delegate.revoke_permissions(&revoke_path);
+                                this.context_menu = None;
+                                // The summaries in the list are now stale.
+                                this.consent =
+                                    ConsentStore::load_default().unwrap_or_default();
+                                cx.notify();
+                            })),
+                        ))
+                        .child(item(
+                            "ctx-remove",
+                            "Remove from recents",
+                            false,
+                            Box::new(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                this.recents.remove(&remove_path);
+                                let _ = this.recents.save_default();
+                                this.context_menu = None;
+                                this.selected = this.selected.saturating_sub(1);
+                                cx.notify();
+                            })),
+                        )),
+                ),
+        )
+    }
+
     /// §7.2's diagnostics strip, copyable as one block.
     fn render_diagnostics(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *theme;
@@ -742,4 +866,22 @@ fn secondary_button(
         );
     }
     button
+}
+
+
+/// One of the identity links in §7.2.
+fn link(
+    id: &'static str,
+    label: &'static str,
+    url: &'static str,
+    theme: Theme,
+    cx: &mut Context<Launcher>,
+) -> impl IntoElement {
+    div()
+        .id(id)
+        .cursor_pointer()
+        .text_color(theme.accent)
+        .hover(|style| style.text_color(theme.text))
+        .on_click(cx.listener(move |this, _: &ClickEvent, _, _| this.delegate.open_url(url)))
+        .child(label)
 }

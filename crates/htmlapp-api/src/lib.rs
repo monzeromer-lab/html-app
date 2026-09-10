@@ -8,24 +8,39 @@
 //! was not granted is never registered and never injected, so §9.3's promise that "the property
 //! does not exist" holds at both ends of the bridge.
 
-#![forbid(unsafe_code)]
+// `deny` rather than `forbid`: `ffi` is the one module that cannot be written without `unsafe`,
+// because calling into a shared object is inherently unsound (§11.3 calls it "the escape hatch
+// that voids the model"). Every other module in this crate is safe code.
+#![deny(unsafe_code)]
 
+pub mod bluetooth;
 pub mod clipboard;
 pub mod context;
 pub mod dbus;
 pub mod dialog;
+pub mod ffi;
 pub mod fs;
 pub mod host;
 pub mod http;
+pub mod net;
 pub mod notify;
 pub mod os;
 pub mod params;
+pub mod plugin;
+pub mod portal;
 pub mod process;
 pub mod runtime;
+pub mod secrets;
+pub mod serial;
 pub mod shell;
+pub mod shortcut;
 pub mod sql;
 pub mod stdio;
 pub mod store;
+pub mod systemd;
+pub mod tray;
+pub mod udev;
+pub mod usb;
 
 use std::sync::Arc;
 
@@ -107,6 +122,7 @@ pub fn register_all(
     dispatcher: &mut Dispatcher,
     registration: Registration,
 ) -> Result<Registered, RpcError> {
+    let events = dispatcher.events();
     let permissions = registration.permissions.clone().unwrap_or_default();
     let granted = permissions.granted_modules();
     let ctx: Ctx = Arc::new(ApiContext::new(&registration.app_id, permissions)?);
@@ -160,10 +176,56 @@ pub fn register_all(
     if granted.contains("shell") {
         dispatcher.register(Arc::new(shell::ShellModule::new(Arc::clone(&ctx))));
     }
+    if granted.contains("secrets") {
+        dispatcher.register(Arc::new(secrets::SecretsModule::new(
+            Arc::clone(&ctx),
+            registration.app_id.clone(),
+        )));
+    }
+    if granted.contains("systemd") {
+        dispatcher.register(Arc::new(systemd::SystemdModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("udev") {
+        dispatcher.register(Arc::new(udev::UdevModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("net") {
+        dispatcher.register(Arc::new(net::NetModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("serial") {
+        dispatcher.register(Arc::new(serial::SerialModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("usb") {
+        dispatcher.register(Arc::new(usb::UsbModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("bluetooth") {
+        dispatcher.register(Arc::new(bluetooth::BluetoothModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("ffi") {
+        dispatcher.register(Arc::new(ffi::FfiModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("plugin") {
+        dispatcher.register(Arc::new(plugin::PluginModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("portal") {
+        dispatcher.register(Arc::new(portal::PortalModule::new(Arc::clone(&ctx))));
+    }
+    if granted.contains("shortcut") {
+        dispatcher.register(Arc::new(shortcut::ShortcutModule::new(
+            Arc::clone(&ctx),
+            events.clone(),
+        )));
+    }
+    if granted.contains("tray") {
+        dispatcher.register(Arc::new(tray::TrayModule::new(
+            Arc::clone(&ctx),
+            registration.app_id.clone(),
+            events.clone(),
+        )));
+    }
 
     // Modules the shell owns. `view` is ambient — a document places native views in its own layout
     // and needs no permission to address what it placed there itself.
-    for module in ["window", "layer", "menu", "palette", "tray", "shortcut", "dnd", "portal"] {
+    for module in ["window", "layer", "menu", "palette", "dnd"] {
         if granted.contains(module) {
             dispatcher.register(Arc::new(HostModule::new(
                 leak_name(module),
@@ -201,10 +263,7 @@ fn leak_name(name: &str) -> &'static str {
         "layer" => "layer",
         "menu" => "menu",
         "palette" => "palette",
-        "tray" => "tray",
-        "shortcut" => "shortcut",
         "dnd" => "dnd",
-        "portal" => "portal",
         other => unreachable!("unexpected host module {other}"),
     }
 }

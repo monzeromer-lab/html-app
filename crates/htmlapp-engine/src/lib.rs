@@ -34,6 +34,8 @@ pub mod imports;
 pub mod origin;
 
 #[cfg(feature = "wry-backend")]
+pub mod occlusion;
+#[cfg(feature = "wry-backend")]
 pub mod wry_backend;
 #[cfg(feature = "wry-backend")]
 pub mod x11_window;
@@ -120,6 +122,17 @@ pub enum EngineEvent {
     NavigationBlocked(String),
     /// `document.title` changed.
     TitleChanged(String),
+    /// A drag entered, moved over, dropped on, or left the page (§9.3 `dnd`).
+    DragDrop(DragDropEvent),
+}
+
+/// A file drag over the page.
+#[derive(Debug, Clone)]
+pub enum DragDropEvent {
+    Enter { paths: Vec<PathBuf>, x: f32, y: f32 },
+    Over { x: f32, y: f32 },
+    Drop { paths: Vec<PathBuf>, x: f32, y: f32 },
+    Leave,
 }
 
 /// Callbacks the runtime installs before the engine starts.
@@ -178,6 +191,24 @@ pub trait WebEngine {
     fn focus(&self) -> Result<()>;
 
     fn reload(&self) -> Result<()>;
+
+    /// Punch holes in the page so the host can paint over it (§4.2 G2).
+    ///
+    /// Rects are in logical pixels relative to the page's own origin. An empty slice restores the
+    /// page to its full extent.
+    ///
+    /// The default does nothing and reports `false`, which is the honest answer for a backend that
+    /// composites properly: an offscreen engine has no surface to punch a hole in, because the host
+    /// is already drawing over it in its own scene.
+    fn set_occlusions(&self, _rects: &[ViewRect]) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// Whether this engine can be occluded, so the runtime knows whether it must fall back to
+    /// hiding the page while a modal is up.
+    fn supports_occlusion(&self) -> bool {
+        false
+    }
 
     /// Open the engine's inspector, if this build has one.
     fn open_devtools(&self) {}

@@ -107,6 +107,7 @@ const FS: ApiModule = ApiModule {
         invoke("rename", "{ from: string; to: string }", "void", "Rename or move."),
         invoke("copy", "{ from: string; to: string }", "void", "Copy a file."),
         invoke("blob", "{ path: string }", "string", "Mint a blob: URL the page can fetch directly, so bulk bytes never pass through JSON."),
+        invoke("mmap", "{ path: string; offset?: number; length?: number; encoding?: Encoding }", "string", "Read a window of a large file through a cached memory map."),
         stream("readStream", "{ path: string; chunkSize?: number }", "string", "Read a file in chunks."),
         stream("tail", "{ path: string; lines?: number }", "string", "Follow a file as it grows."),
         stream("watch", "{ path: string; recursive?: boolean }", "WatchEvent", "inotify watches over the granted scope."),

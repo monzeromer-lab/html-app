@@ -5,6 +5,7 @@
 //! leave a window in which a symlink could be swapped underneath the decision.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use async_stream::try_stream;
 use htmlapp_bridge::dispatch::{ApiHandler, BoxFuture, ValueStream};
@@ -19,11 +20,17 @@ pub struct FsModule {
     ctx: Ctx,
     /// Shared with the origin resolver, which is what actually serves the bytes.
     blobs: htmlapp_bridge::BlobStore,
+    /// Memory maps held open for `fs.mmap`, keyed by resolved path.
+    maps: parking_lot::Mutex<std::collections::HashMap<PathBuf, Arc<memmap2::Mmap>>>,
 }
 
 impl FsModule {
     pub fn new(ctx: Ctx, blobs: htmlapp_bridge::BlobStore) -> Self {
-        Self { ctx, blobs }
+        Self {
+            ctx,
+            blobs,
+            maps: parking_lot::Mutex::new(std::collections::HashMap::new()),
+        }
     }
 
     /// Look up a path previously minted as a `blob:` URL, for the host to serve.
@@ -90,6 +97,17 @@ struct RemoveParams {
 struct MoveParams {
     from: String,
     to: String,
+}
+
+#[derive(Deserialize)]
+struct MmapParams {
+    path: String,
+    #[serde(default)]
+    offset: u64,
+    #[serde(default)]
+    length: Option<usize>,
+    #[serde(default)]
+    encoding: Encoding,
 }
 
 #[derive(Deserialize)]
@@ -363,6 +381,54 @@ impl FsModule {
     }
 }
 
+impl FsModule {
+    /// Read a window of a file through a memory map.
+    ///
+    /// The point is repeated access to a large file: the map is created once and cached, so paging
+    /// through a multi-gigabyte file costs one `mmap` rather than one `read` per window. A single
+    /// read is better served by `fs.read`, and the whole file by `fs.blob`.
+    async fn mmap(&self, params: Value) -> Result<Value, RpcError> {
+        let params: MmapParams = decode("fs.mmap", params)?;
+        let path = self.ctx.check_read(&params.path)?;
+
+        let map = {
+            let mut maps = self.maps.lock();
+            match maps.get(&path) {
+                Some(existing) => Arc::clone(existing),
+                None => {
+                    let file = std::fs::File::open(&path)
+                        .map_err(|e| io_error("open", &path, e))?;
+                    // SAFETY-adjacent: a memory map aliases a file that another process can
+                    // truncate underneath it, which would fault on access. `memmap2` documents
+                    // this; the exposure is the same as any `mmap` and is why reads below are
+                    // bounded by the length recorded at map time.
+                    #[allow(unsafe_code)]
+                    let map = unsafe { memmap2::Mmap::map(&file) }
+                        .map_err(|e| io_error("map", &path, e))?;
+                    let map = Arc::new(map);
+                    maps.insert(path.clone(), Arc::clone(&map));
+                    map
+                }
+            }
+        };
+
+        let start = (params.offset as usize).min(map.len());
+        let end = params
+            .length
+            .map(|len| start.saturating_add(len).min(map.len()))
+            .unwrap_or(map.len());
+        let window = &map[start..end];
+
+        Ok(match params.encoding {
+            Encoding::Utf8 => json!(String::from_utf8_lossy(window)),
+            Encoding::Binary => {
+                use base64::Engine as _;
+                json!(base64::engine::general_purpose::STANDARD.encode(window))
+            }
+        })
+    }
+}
+
 /// The longest literal directory prefix of a glob — where a walk can start.
 fn fixed_prefix(pattern: &str) -> PathBuf {
     let mut prefix = PathBuf::new();
@@ -401,6 +467,7 @@ impl ApiHandler for FsModule {
                 "rename" => self.rename(params).await,
                 "copy" => self.copy(params).await,
                 "blob" => self.blob(params).await,
+                "mmap" => self.mmap(params).await,
                 other => Err(RpcError::not_found(&format!("fs.{other}"))),
             }
         })

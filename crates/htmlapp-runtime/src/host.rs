@@ -13,6 +13,80 @@ use htmlapp_bridge::RpcError;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
 
+/// Something the shell is drawing over the page (§4.2 G2).
+///
+/// While one of these is up the page is occluded entirely, so the overlay is genuinely on top and
+/// receives input — rather than the page being hidden, which is what §6.6 says goes away.
+#[derive(Debug, Clone)]
+pub enum Overlay {
+    /// The native command palette (§9.3 `palette`).
+    Palette { query: String, selected: usize },
+    /// A context menu (§9.3 `menu.popup`).
+    Menu {
+        items: Vec<MenuEntry>,
+        x: f32,
+        y: f32,
+        selected: usize,
+    },
+    /// `dialog.message` / `confirm` / `prompt`.
+    Dialog {
+        kind: DialogKind,
+        title: String,
+        body: String,
+        input: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogKind {
+    Message,
+    Confirm,
+    Prompt,
+}
+
+/// One flattened menu entry, ready to draw.
+#[derive(Debug, Clone)]
+pub struct MenuEntry {
+    pub id: String,
+    pub label: String,
+    pub separator: bool,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+    /// Nesting depth, so a submenu renders indented rather than needing a second popup.
+    pub depth: usize,
+}
+
+/// Flatten the manifest-shaped menu JSON into drawable entries.
+pub fn flatten_menu(items: &[Value], depth: usize, out: &mut Vec<MenuEntry>) {
+    for item in items {
+        let separator = item.get("separator").and_then(|v| v.as_bool()).unwrap_or(false);
+        if separator {
+            out.push(MenuEntry {
+                id: String::new(),
+                label: String::new(),
+                separator: true,
+                enabled: false,
+                checked: None,
+                depth,
+            });
+            continue;
+        }
+
+        out.push(MenuEntry {
+            id: item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            label: item.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            separator: false,
+            enabled: item.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+            checked: item.get("checked").and_then(|v| v.as_bool()),
+            depth,
+        });
+
+        if let Some(submenu) = item.get("submenu").and_then(|v| v.as_array()) {
+            flatten_menu(submenu, depth + 1, out);
+        }
+    }
+}
+
 /// A request for the UI thread.
 #[derive(Debug, Clone)]
 pub enum HostCommand {
@@ -29,6 +103,9 @@ pub enum HostCommand {
     ClosePalette,
     /// Show a message, confirm, or prompt sheet.
     Dialog { kind: String, params: Value },
+    SetOpacity(f32),
+    SetInputRegion(Option<Vec<htmlapp_engine::ViewRect>>),
+    OpenWindow { path: Option<String> },
 }
 
 /// The concrete view behind an `<htmlapp-view>` element.
@@ -53,6 +130,15 @@ impl ViewBackend {
                 ViewBackend::Table(htmlapp_views::TableView::new())
             }
             _ => ViewBackend::Unimplemented(kind.to_string()),
+        }
+    }
+
+    /// The GPUI element for this view, if the kind is one this build renders.
+    pub fn element(&self, height: f32) -> Option<gpui::AnyElement> {
+        match self {
+            ViewBackend::Terminal(view) => Some(view.element()),
+            ViewBackend::Table(view) => Some(view.element(height)),
+            ViewBackend::Unimplemented(_) => None,
         }
     }
 
@@ -83,6 +169,13 @@ pub struct ViewState {
 pub struct HostState {
     pub commands: Mutex<Vec<HostCommand>>,
     pub views: Mutex<BTreeMap<String, ViewState>>,
+    /// A full-page region the host is painting over — a menu, palette, or dialog sheet. When set,
+    /// the page is occluded entirely rather than per-view (§4.2 G2).
+    pub overlay: Mutex<Option<htmlapp_engine::ViewRect>>,
+    /// What that overlay is showing.
+    pub overlay_state: Mutex<Option<Overlay>>,
+    /// Where to send the overlay's outcome, for the calls that have one.
+    pub overlay_reply: Mutex<Option<tokio::sync::oneshot::Sender<Value>>>,
     pub menu: Mutex<Option<Value>>,
     pub palette_commands: Mutex<Vec<Value>>,
     pub title: Mutex<Option<String>>,
@@ -96,6 +189,30 @@ impl HostState {
     /// Take everything queued for the UI thread.
     pub fn drain_commands(&self) -> Vec<HostCommand> {
         std::mem::take(&mut *self.commands.lock())
+    }
+
+    /// Put an overlay up and, if it has an outcome, hand back the receiver for it.
+    fn show_overlay(&self, overlay: Overlay) -> tokio::sync::oneshot::Receiver<Value> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        // Replacing an overlay drops the previous reply channel, which resolves the earlier call
+        // with a cancellation rather than leaving it hanging forever.
+        *self.overlay_state.lock() = Some(overlay);
+        *self.overlay_reply.lock() = Some(tx);
+        rx
+    }
+
+    /// Dismiss the overlay, answering whatever was waiting on it.
+    pub fn close_overlay(&self, outcome: Value) {
+        *self.overlay_state.lock() = None;
+        *self.overlay.lock() = None;
+        if let Some(reply) = self.overlay_reply.lock().take() {
+            let _ = reply.send(outcome);
+        }
+    }
+
+    /// Whether an overlay is currently up.
+    pub fn has_overlay(&self) -> bool {
+        self.overlay_state.lock().is_some()
     }
 
     fn push(&self, command: HostCommand) {
@@ -125,7 +242,23 @@ fn string(params: &Value, key: &str) -> Option<String> {
 }
 
 impl HostBridge for RuntimeHost {
-    fn call(&self, module: &str, method: &str, params: Value) -> Result<Value, RpcError> {
+    fn call<'a>(
+        &'a self,
+        module: &'a str,
+        method: &'a str,
+        params: Value,
+    ) -> htmlapp_bridge::BoxFuture<'a, Result<Value, RpcError>> {
+        Box::pin(async move { self.dispatch(module, method, params).await })
+    }
+}
+
+impl RuntimeHost {
+    async fn dispatch(
+        &self,
+        module: &str,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, RpcError> {
         if !self.has_window && module != "view" {
             return Err(RpcError::unsupported(format!(
                 "`{module}.{method}` needs a window; this document is running headless"
@@ -183,9 +316,37 @@ impl HostBridge for RuntimeHost {
                 self.state.push(HostCommand::Close);
                 Ok(Value::Null)
             }
-            ("window", "setOpacity" | "setInputRegion" | "open") => Err(RpcError::unsupported(
-                format!("`window.{method}` is not implemented yet"),
-            )),
+            ("window", "setOpacity") => {
+                let opacity = number(&params, "opacity").unwrap_or(1.0).clamp(0.0, 1.0);
+                self.state.push(HostCommand::SetOpacity(opacity));
+                Ok(Value::Null)
+            }
+            ("window", "setInputRegion") => {
+                // `null` restores the whole window; a list of rects makes everything else
+                // click-through, which is what an overlay bar wants.
+                let rects = params.get("rects").and_then(|v| v.as_array()).map(|rects| {
+                    rects
+                        .iter()
+                        .filter_map(|rect| {
+                            Some(htmlapp_engine::ViewRect::new(
+                                number(rect, "x")?,
+                                number(rect, "y")?,
+                                number(rect, "width")?,
+                                number(rect, "height")?,
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                });
+                self.state.push(HostCommand::SetInputRegion(rects));
+                Ok(Value::Null)
+            }
+            ("window", "open") => {
+                // §7.4: every document is its own process, so a second window from the same file
+                // is a second process rather than a second surface in this one.
+                let path = string(&params, "path");
+                self.state.push(HostCommand::OpenWindow { path: path.clone() });
+                Ok(Value::Null)
+            }
 
             // --- menu and palette ---
             ("menu", "setApplicationMenu") => {
@@ -202,27 +363,62 @@ impl HostBridge for RuntimeHost {
                 Ok(Value::Null)
             }
             ("palette", "open") => {
-                self.state.push(HostCommand::OpenPalette {
-                    query: string(&params, "query"),
+                self.state.show_overlay(Overlay::Palette {
+                    query: string(&params, "query").unwrap_or_default(),
+                    selected: 0,
                 });
                 Ok(Value::Null)
             }
             ("palette", "close") => {
-                self.state.push(HostCommand::ClosePalette);
+                self.state.close_overlay(Value::Null);
                 Ok(Value::Null)
             }
 
-            // --- dialogs the shell paints (§9.3 Tier 1) ---
-            ("dialog", kind @ ("message" | "confirm" | "prompt")) => {
-                self.state.push(HostCommand::Dialog {
-                    kind: kind.to_string(),
-                    params,
+            ("menu", "popup") => {
+                let mut entries = Vec::new();
+                flatten_menu(
+                    params.get("items").and_then(|v| v.as_array()).unwrap_or(&Vec::new()),
+                    0,
+                    &mut entries,
+                );
+                if entries.is_empty() {
+                    return Ok(Value::Null);
+                }
+
+                let reply = self.state.show_overlay(Overlay::Menu {
+                    items: entries,
+                    x: number(&params, "x").unwrap_or(0.0),
+                    y: number(&params, "y").unwrap_or(0.0),
+                    selected: 0,
                 });
-                // These resolve when the sheet closes. Until the sheet is wired to a reply
-                // channel, saying so is more honest than resolving with a made-up answer.
-                Err(RpcError::unsupported(format!(
-                    "`dialog.{kind}` is queued but does not return a result yet"
-                )))
+                // Resolves with the chosen id, or null if dismissed.
+                Ok(reply.await.unwrap_or(Value::Null))
+            }
+
+            // --- dialogs the shell paints (§9.3 Tier 1) ---
+            //
+            // Painted by GPUI rather than routed through a portal, because these are modal to *this
+            // document's window*: the portal has no notion of "ask inside that window".
+            ("dialog", kind @ ("message" | "confirm" | "prompt")) => {
+                let dialog_kind = match kind {
+                    "confirm" => DialogKind::Confirm,
+                    "prompt" => DialogKind::Prompt,
+                    _ => DialogKind::Message,
+                };
+
+                let reply = self.state.show_overlay(Overlay::Dialog {
+                    kind: dialog_kind,
+                    title: string(&params, "title").unwrap_or_default(),
+                    body: string(&params, "body").unwrap_or_default(),
+                    input: string(&params, "default").unwrap_or_default(),
+                });
+
+                let outcome = reply.await.unwrap_or(Value::Null);
+                Ok(match dialog_kind {
+                    DialogKind::Message => Value::Null,
+                    DialogKind::Confirm => Value::Bool(outcome.as_bool().unwrap_or(false)),
+                    DialogKind::Prompt => outcome,
+                })
             }
 
             // --- native views (§10) ---
@@ -338,9 +534,16 @@ impl HostBridge for RuntimeHost {
 pub struct HeadlessHost;
 
 impl HostBridge for HeadlessHost {
-    fn call(&self, module: &str, method: &str, _params: Value) -> Result<Value, RpcError> {
-        Err(RpcError::unsupported(format!(
-            "`{module}.{method}` needs a window; this document is running headless"
-        )))
+    fn call<'a>(
+        &'a self,
+        module: &'a str,
+        method: &'a str,
+        _params: Value,
+    ) -> htmlapp_bridge::BoxFuture<'a, Result<Value, RpcError>> {
+        Box::pin(async move {
+            Err(RpcError::unsupported(format!(
+                "`{module}.{method}` needs a window; this document is running headless"
+            )))
+        })
     }
 }

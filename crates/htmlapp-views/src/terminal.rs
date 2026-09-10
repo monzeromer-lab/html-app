@@ -13,10 +13,7 @@ use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column as GridColumn, Line as GridLine, Point};
 use alacritty_terminal::term::{Config, Term};
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor, Processor};
-use gpui::{
-    Context, IntoElement, ParentElement, Render, Rgba, SharedString, Styled, Window, div, px, rems,
-    rgb,
-};
+use gpui::{AnyElement, IntoElement, ParentElement, Rgba, SharedString, Styled, div, px, rems, rgb};
 use serde_json::Value;
 
 use crate::{NativeView, ViewKind};
@@ -266,15 +263,20 @@ impl NativeView for TerminalView {
     }
 }
 
-impl Render for TerminalView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+impl TerminalView {
+    /// Build the element for this terminal.
+    ///
+    /// A free method rather than a `Render` impl, for the same reason as [`TableView::element`]:
+    /// the host draws the view straight out of its own state.
+    ///
+    /// Adjacent cells sharing a colour are merged into one span, so an ordinary line of text costs
+    /// one element rather than eighty.
+    pub fn element(&self) -> AnyElement {
         let grid = self.term.grid();
         let mut rows = Vec::with_capacity(self.size.screen_lines);
 
         for row in 0..self.size.screen_lines {
             let line = GridLine(row as i32);
-            // Adjacent cells sharing a colour become one span, so a full-width line of ordinary
-            // text costs one element rather than eighty.
             let mut spans: Vec<(String, Rgba)> = Vec::new();
             let mut current = String::new();
             let mut current_color: Option<Rgba> = None;
@@ -303,9 +305,7 @@ impl Render for TerminalView {
                     .flex()
                     .h(px(CELL_HEIGHT))
                     .children(spans.into_iter().map(|(text, color)| {
-                        div()
-                            .text_color(color)
-                            .child(SharedString::from(text))
+                        div().text_color(color).child(SharedString::from(text))
                     })),
             );
         }
@@ -318,5 +318,6 @@ impl Render for TerminalView {
             .font_family("monospace")
             .text_size(rems(self.font_size / 16.0))
             .children(rows)
+            .into_any_element()
     }
 }

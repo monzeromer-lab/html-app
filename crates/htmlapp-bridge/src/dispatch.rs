@@ -68,6 +68,54 @@ struct OpenStream {
     cancelled: Arc<AtomicBool>,
 }
 
+/// A handle a module can hold to push events to the page (PRD §9.1).
+///
+/// Separate from [`Dispatcher`] because events flow the other way: a tray click, a global hotkey,
+/// or a udev hotplug originates in a module and has no request to reply to. Sharing the
+/// subscription table means an event with no listener costs nothing rather than being serialised
+/// and thrown away.
+#[derive(Clone)]
+pub struct Events {
+    transport: Arc<dyn Transport>,
+    subscriptions: Arc<Mutex<HashMap<RequestId, String>>>,
+}
+
+impl Events {
+    /// Emit an event, if anything is listening for it.
+    pub fn emit(&self, event: &str, payload: Value) {
+        let listening = self
+            .subscriptions
+            .lock()
+            .values()
+            .any(|subscribed| subscribed == event);
+        if listening {
+            self.transport.send(HostMessage::Event {
+                event: event.to_string(),
+                payload,
+            });
+        }
+    }
+
+    /// Whether anything is subscribed to this event.
+    ///
+    /// Lets a module avoid doing the work behind an event nobody wants — polling battery state, or
+    /// keeping a clipboard watcher open.
+    pub fn has_listener(&self, event: &str) -> bool {
+        self.subscriptions
+            .lock()
+            .values()
+            .any(|subscribed| subscribed == event)
+    }
+}
+
+impl std::fmt::Debug for Events {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Events")
+            .field("subscriptions", &self.subscriptions.lock().len())
+            .finish()
+    }
+}
+
 /// The bridge's request router.
 pub struct Dispatcher {
     handlers: HashMap<&'static str, Arc<dyn ApiHandler>>,
@@ -75,7 +123,7 @@ pub struct Dispatcher {
     granted: Option<Permissions>,
     transport: Arc<dyn Transport>,
     streams: Mutex<HashMap<RequestId, OpenStream>>,
-    subscriptions: Mutex<HashMap<RequestId, String>>,
+    subscriptions: Arc<Mutex<HashMap<RequestId, String>>>,
     headless: bool,
 }
 
@@ -86,7 +134,7 @@ impl Dispatcher {
             granted,
             transport,
             streams: Mutex::new(HashMap::new()),
-            subscriptions: Mutex::new(HashMap::new()),
+            subscriptions: Arc::new(Mutex::new(HashMap::new())),
             headless,
         }
     }
@@ -99,6 +147,14 @@ impl Dispatcher {
 
     pub fn transport(&self) -> Arc<dyn Transport> {
         Arc::clone(&self.transport)
+    }
+
+    /// A handle modules use to push events to the page.
+    pub fn events(&self) -> Events {
+        Events {
+            transport: Arc::clone(&self.transport),
+            subscriptions: Arc::clone(&self.subscriptions),
+        }
     }
 
     /// Whether the manifest granted this module.
@@ -245,17 +301,7 @@ impl Dispatcher {
 
     /// Emit an event to the page, if anything is listening for it.
     pub fn emit(&self, event: &str, payload: Value) {
-        let listening = self
-            .subscriptions
-            .lock()
-            .values()
-            .any(|subscribed| subscribed == event);
-        if listening {
-            self.transport.send(HostMessage::Event {
-                event: event.to_string(),
-                payload,
-            });
-        }
+        self.events().emit(event, payload);
     }
 
     /// Parse and handle a raw IPC string from the page.

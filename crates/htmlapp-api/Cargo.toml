@@ -10,12 +10,14 @@ repository.workspace = true
 default = ["tier1", "tier2", "tier3", "tier4"]
 tier1 = ["dep:notify", "dep:portable-pty", "dep:reqwest", "dep:rusqlite"]
 tier2 = ["dep:zbus", "dep:ashpd", "dep:ksni", "dep:udev"]
-tier3 = ["dep:arboard"]
-tier4 = ["dep:sysinfo", "dep:open", "dep:trash"]
-# Escape hatches, off unless explicitly asked for (§9.3 Tier 4).
-ffi = ["dep:libloading"]
+tier3 = ["dep:arboard", "dep:x11rb"]
+tier4 = ["dep:sysinfo", "dep:open", "dep:trash", "dep:serialport", "dep:libloading"]
+
+# Heavier or hardware-dependent backends. On by default where they build cleanly; each can be
+# turned off for a smaller binary or a build host without the system libraries.
+usb = ["dep:rusb"]
+bluetooth = ["dep:bluer"]
 plugin = ["dep:wasmtime"]
-serial = ["dep:serialport"]
 
 [dependencies]
 htmlapp-caps.workspace = true
@@ -31,6 +33,16 @@ base64.workspace = true
 dirs.workspace = true
 globset.workspace = true
 async-stream = "0.3"
+# ashpd hands back `url::Url`, so building requests needs the same type.
+url = "2"
+# Clipboard images: a real PNG codec, rather than the hand-rolled encoder this replaces.
+png = "0.17"
+# `fs.mmap`: windowed reads of a large file without re-reading it each time.
+memmap2 = "0.9"
+# For the X11 hotkey fallback: `XGrabKey` on the root window, for sessions with no portal.
+x11rb = { version = "0.13", optional = true }
+# Only for the WebSocket handshake, which RFC 6455 specifies in terms of SHA-1.
+sha1 = "0.10"
 
 notify        = { version = "8", optional = true }
 portable-pty  = { version = "0.9", optional = true }
@@ -40,15 +52,22 @@ rusqlite      = { version = "0.37", features = ["bundled"], optional = true }
 # enables two mutually exclusive async backends at once. ashpd refuses that combination outright.
 zbus          = { version = "5", optional = true }
 ashpd         = { version = "0.11", default-features = false, features = ["async-std"], optional = true }
-ksni          = { version = "0.3", optional = true }
+# `async-io` rather than the default `tokio`, to match the zbus backend ashpd and gpui pull in.
+ksni          = { version = "0.3", default-features = false, features = ["async-io", "blocking"], optional = true }
 udev          = { version = "0.9", optional = true }
 arboard       = { version = "3", optional = true }
 sysinfo       = { version = "0.38", optional = true }
 open          = { version = "5", optional = true }
 trash         = { version = "5", optional = true }
-libloading    = { version = "0.8", optional = true }
-wasmtime      = { version = "38", optional = true }
+libloading    = { version = "0.9", optional = true }
+wasmtime      = { version = "38", default-features = false, features = ["cranelift", "runtime", "std"], optional = true }
 serialport    = { version = "4", optional = true }
+# `vendored` builds libusb from source: this host has no libusb-1.0 development package, and a
+# hardware API that only exists on machines with the right -dev package installed is not much of
+# an API.
+rusb          = { version = "0.9", features = ["vendored"], optional = true }
+# `bluetoothd` is what exposes Session/Adapter/Device; without it the crate is only the id tables.
+bluer         = { version = "0.17", default-features = false, features = ["bluetoothd"], optional = true }
 
 [dev-dependencies]
 tempfile = "3"

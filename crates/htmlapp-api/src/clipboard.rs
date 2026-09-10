@@ -30,6 +30,11 @@ struct HtmlParams {
 }
 
 #[derive(Deserialize)]
+struct ImageParams {
+    data: String,
+}
+
+#[derive(Deserialize)]
 struct FilesParams {
     paths: Vec<String>,
 }
@@ -100,10 +105,17 @@ impl ApiHandler for ClipboardModule {
                 }
                 "writeImage" => {
                     self.ctx.check_clipboard(ClipboardAccess::Write)?;
-                    let _ = params;
-                    Err(RpcError::unsupported(
-                        "writing images to the clipboard is not implemented yet",
-                    ))
+                    let params: ImageParams = decode("clipboard.writeImage", params)?;
+                    let (width, height, bytes) = decode_data_uri(&params.data)?;
+                    self.open()?
+                        .set_image(arboard::ImageData {
+                            width,
+                            height,
+                            bytes: std::borrow::Cow::Owned(bytes),
+                        })
+                        .map_err(|e| RpcError::new(
+                            htmlapp_bridge::ErrorCode::OperationFailed, e.to_string()))?;
+                    Ok(Value::Null)
                 }
                 "readFiles" => {
                     self.ctx.check_clipboard(ClipboardAccess::Read)?;
@@ -141,83 +153,81 @@ impl ApiHandler for ClipboardModule {
     }
 }
 
-/// Encode a clipboard image as PNG without pulling in an image codec crate.
+/// Encode a clipboard image as PNG.
 #[cfg(feature = "tier3")]
 fn encode_png(image: &arboard::ImageData<'_>) -> Result<Vec<u8>, RpcError> {
-    // arboard hands back raw RGBA. A minimal, uncompressed-deflate PNG keeps this dependency-free.
-    png::encode_rgba(image.width as u32, image.height as u32, &image.bytes)
-        .ok_or_else(|| RpcError::internal("could not encode the clipboard image"))
+    let mut out = Vec::new();
+    {
+        let mut encoder =
+            png::Encoder::new(&mut out, image.width as u32, image.height as u32);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| RpcError::internal(format!("could not encode PNG: {e}")))?;
+        writer
+            .write_image_data(&image.bytes)
+            .map_err(|e| RpcError::internal(format!("could not encode PNG: {e}")))?;
+    }
+    Ok(out)
 }
 
+/// Decode a `data:` URI into the RGBA buffer arboard wants.
+///
+/// Only PNG is accepted. A clipboard image arriving as an arbitrary URL would mean fetching it,
+/// which is `http`'s business and governed by a different grant.
 #[cfg(feature = "tier3")]
-mod png {
-    /// CRC-32 as specified by PNG.
-    fn crc32(data: &[u8]) -> u32 {
-        let mut table = [0u32; 256];
-        for (i, entry) in table.iter_mut().enumerate() {
-            let mut c = i as u32;
-            for _ in 0..8 {
-                c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
-            }
-            *entry = c;
-        }
-        let mut crc = 0xFFFF_FFFFu32;
-        for byte in data {
-            crc = table[((crc ^ *byte as u32) & 0xFF) as usize] ^ (crc >> 8);
-        }
-        crc ^ 0xFFFF_FFFF
+fn decode_data_uri(data: &str) -> Result<(usize, usize, Vec<u8>), RpcError> {
+    use base64::Engine as _;
+
+    let (header, payload) = data
+        .strip_prefix("data:")
+        .and_then(|rest| rest.split_once(','))
+        .ok_or_else(|| RpcError::invalid_params("expected a data: URI"))?;
+
+    if !header.starts_with("image/png") {
+        return Err(RpcError::invalid_params(
+            "only image/png data URIs can be written to the clipboard",
+        ));
     }
 
-    fn adler32(data: &[u8]) -> u32 {
-        let (mut a, mut b) = (1u32, 0u32);
-        for byte in data {
-            a = (a + *byte as u32) % 65521;
-            b = (b + a) % 65521;
+    let bytes = if header.ends_with(";base64") {
+        base64::engine::general_purpose::STANDARD
+            .decode(payload.as_bytes())
+            .map_err(|e| RpcError::invalid_params(format!("not base64: {e}")))?
+    } else {
+        payload.as_bytes().to_vec()
+    };
+
+    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    let mut reader = decoder
+        .read_info()
+        .map_err(|e| RpcError::invalid_params(format!("not a valid PNG: {e}")))?;
+
+    let mut buffer = vec![0u8; reader.output_buffer_size()];
+    let info = reader
+        .next_frame(&mut buffer)
+        .map_err(|e| RpcError::invalid_params(format!("could not decode the PNG: {e}")))?;
+    buffer.truncate(info.buffer_size());
+
+    // arboard wants RGBA; widen anything narrower rather than refusing it.
+    let rgba = match info.color_type {
+        png::ColorType::Rgba => buffer,
+        png::ColorType::Rgb => buffer
+            .chunks_exact(3)
+            .flat_map(|p| [p[0], p[1], p[2], 255])
+            .collect(),
+        png::ColorType::Grayscale => buffer.iter().flat_map(|g| [*g, *g, *g, 255]).collect(),
+        png::ColorType::GrayscaleAlpha => buffer
+            .chunks_exact(2)
+            .flat_map(|p| [p[0], p[0], p[0], p[1]])
+            .collect(),
+        other => {
+            return Err(RpcError::invalid_params(format!(
+                "{other:?} PNGs are not supported"
+            )));
         }
-        (b << 16) | a
-    }
+    };
 
-    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], body: &[u8]) {
-        out.extend_from_slice(&(body.len() as u32).to_be_bytes());
-        let mut with_kind = kind.to_vec();
-        with_kind.extend_from_slice(body);
-        out.extend_from_slice(&with_kind);
-        out.extend_from_slice(&crc32(&with_kind).to_be_bytes());
-    }
-
-    /// Write RGBA as a PNG using stored (uncompressed) deflate blocks.
-    pub fn encode_rgba(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
-        if rgba.len() < (width as usize) * (height as usize) * 4 {
-            return None;
-        }
-
-        // Each scanline is prefixed with filter type 0.
-        let mut raw = Vec::with_capacity(rgba.len() + height as usize);
-        for y in 0..height as usize {
-            raw.push(0);
-            let start = y * width as usize * 4;
-            raw.extend_from_slice(&rgba[start..start + width as usize * 4]);
-        }
-
-        // zlib header, then stored deflate blocks of at most 65535 bytes.
-        let mut z = vec![0x78, 0x01];
-        for (i, block) in raw.chunks(65_535).enumerate() {
-            let last = (i + 1) * 65_535 >= raw.len();
-            z.push(if last { 1 } else { 0 });
-            z.extend_from_slice(&(block.len() as u16).to_le_bytes());
-            z.extend_from_slice(&(!(block.len() as u16)).to_le_bytes());
-            z.extend_from_slice(block);
-        }
-        z.extend_from_slice(&adler32(&raw).to_be_bytes());
-
-        let mut out = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
-        let mut ihdr = Vec::new();
-        ihdr.extend_from_slice(&width.to_be_bytes());
-        ihdr.extend_from_slice(&height.to_be_bytes());
-        ihdr.extend_from_slice(&[8, 6, 0, 0, 0]); // 8-bit RGBA
-        chunk(&mut out, b"IHDR", &ihdr);
-        chunk(&mut out, b"IDAT", &z);
-        chunk(&mut out, b"IEND", &[]);
-        Some(out)
-    }
+    Ok((info.width as usize, info.height as usize, rgba))
 }

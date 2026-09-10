@@ -44,6 +44,43 @@ pub fn compositor() -> Option<String> {
         .or_else(|| std::env::var("DESKTOP_SESSION").ok().filter(|s| !s.is_empty()))
 }
 
+/// Identify the GPU, for the launcher's diagnostics strip (§7.2).
+///
+/// Read from DRM sysfs rather than by shelling out to `lspci` or `vulkaninfo`: those are not
+/// installed everywhere, and a diagnostics strip that says "unknown" because a tool is missing is
+/// worse than one that says "nvidia 10DE:1F15".
+pub fn gpu() -> Option<String> {
+    let cards = std::fs::read_dir("/sys/class/drm").ok()?;
+    let mut found = Vec::new();
+
+    for card in cards.flatten() {
+        let name = card.file_name().to_string_lossy().into_owned();
+        // `card0`, not `card0-DP-1`: the latter are connectors on the same device.
+        if !name.starts_with("card") || name.contains('-') {
+            continue;
+        }
+
+        let uevent = std::fs::read_to_string(card.path().join("device/uevent")).ok()?;
+        let field = |key: &str| {
+            uevent
+                .lines()
+                .find_map(|line| line.strip_prefix(key))
+                .map(str::to_string)
+        };
+
+        let driver = field("DRIVER=");
+        let pci = field("PCI_ID=");
+        match (driver, pci) {
+            (Some(driver), Some(pci)) => found.push(format!("{driver} {pci}")),
+            (Some(driver), None) => found.push(driver),
+            (None, Some(pci)) => found.push(pci),
+            (None, None) => {}
+        }
+    }
+
+    (!found.is_empty()).then(|| found.join(", "))
+}
+
 /// Read `PRETTY_NAME` out of `/etc/os-release`.
 fn distro() -> Option<String> {
     let text = std::fs::read_to_string("/etc/os-release").ok()?;

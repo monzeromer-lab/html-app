@@ -24,3 +24,5 @@ parking_lot.workspace = true
 dirs.workspace = true
 gpui = "0.2.2"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
+# `flock` for the launcher's single-instance guard, without this crate needing `unsafe`.
+rustix = { version = "1", features = ["fs"] }

@@ -20,7 +20,7 @@ pub mod typescript;
 
 pub use blob::BlobStore;
 pub use catalog::{ApiEvent, ApiMethod, ApiModule, MethodKind, Tier};
-pub use dispatch::{ApiHandler, BoxFuture, Dispatcher, Transport, ValueStream};
+pub use dispatch::{ApiHandler, BoxFuture, Dispatcher, Events, Transport, ValueStream};
 pub use protocol::{ClientMessage, ErrorCode, HostMessage, RequestId, RpcError};
 pub use shim::{ShimConfig, dispatch_script, render as render_shim};
 pub use typescript::emit as emit_typescript;
