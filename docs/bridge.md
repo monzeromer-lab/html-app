@@ -227,6 +227,10 @@ await htmlapp.exit(0);
 cat access.log | htmlapp report.hta --headless --format json > summary.json
 ```
 
+`--headless` means no window, not no display: the page still runs in a real WebKitGTK webview, so
+GTK needs a display server even though nothing is drawn. On a machine without one — a CI runner, or
+a server over ssh — run it under `xvfb-run`.
+
 The process exits when the page calls `htmlapp.exit(code)`. **An uncaught error or unhandled
 rejection exits `1`** with the message on stderr — a document that throws must not hang the pipeline
 it is part of.

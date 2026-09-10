@@ -107,11 +107,18 @@ jobs:
 
       - name: Verify the binary runs
         # A release binary that cannot execute on the machine that built it is worth catching here
-        # rather than in an issue report.
+        # rather than in an issue report. Both commands are display-free: `--version` proves every
+        # shared library resolves, because the loader does that before `main` ever runs, and
+        # `inspect` adds the manifest parser and the content hash on top.
+        #
+        # Running a document is deliberately not attempted. `--headless` means no window, not no
+        # display: the page still runs in a real WebKitGTK webview, and GTK cannot initialise
+        # without a display server. Doing it here would mean xvfb, which is a heavier and flakier
+        # dependency than this check is worth.
         run: |
           set -euo pipefail
-          printf 'a,b\n1,2\n' | ./target/release/htmlapp examples/csv-report.hta --headless
           ./target/release/htmlapp --version
+          ./target/release/htmlapp inspect examples/csv-report.hta
 
       - uses: actions/upload-artifact@v4
         with:

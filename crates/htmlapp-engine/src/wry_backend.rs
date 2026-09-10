@@ -79,7 +79,10 @@ pub fn force_x11_session() -> bool {
 pub fn init_toolkit() -> Result<()> {
     if gtk::init().is_err() {
         return Err(EngineError::Startup(
-            "could not initialise GTK; the wry backend needs an X11 display".into(),
+            "could not initialise GTK; the wry backend needs a display. `--headless` means no \
+             window, not no display — the page still runs in a real webview. On a machine without \
+             one, a CI runner or ssh without X forwarding, run it under `xvfb-run`."
+                .into(),
         ));
     }
     Ok(())
