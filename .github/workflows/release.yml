@@ -1,0 +1,277 @@
+# Build the runtime and attach the artifacts to a GitHub release.
+#
+# Triggered by pushing a version tag:
+#
+#     git tag v0.1.0 && git push origin v0.1.0
+#
+# `workflow_dispatch` builds everything without publishing, which is how to test a change to this
+# file without burning a tag.
+#
+# The asset names are a contract with `install.sh`, which fetches
+# `htmlapp-<arch>-linux.tar.gz` and verifies the `.sha256` beside it. Renaming an asset here
+# breaks `curl | sh` installs.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a draft release from this run'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # A release binary ships with the optional backends compiled in. Someone installing a prebuilt
+  # binary cannot recompile it, so `usb`/`bluetooth` reporting "compiled without the feature"
+  # would be a dead end. `plugin` (wasmtime) is left out: it adds minutes to the build and tens of
+  # megabytes to a binary that is already ~50 MB.
+  RELEASE_FEATURES: layer-shell,htmlapp-api/usb,htmlapp-api/bluetooth
+
+jobs:
+  # Nothing is published unless the suite passes. A release is the one artefact nobody re-checks.
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libxkbcommon-dev \
+            libwayland-dev libvulkan-dev libssl-dev libgtk-layer-shell-dev pkg-config
+      - run: cargo fmt --all --check
+      - name: Clippy
+        # Not `-D warnings` yet: there is a backlog of style findings. This keeps new hard errors
+        # out without blocking a release on lint debt.
+        run: cargo clippy --workspace --all-targets
+      - name: Test
+        # No display server on the runner. The suite is written to need none — that separation is
+        # deliberate, and this is what keeps it honest.
+        run: cargo test --workspace
+      - name: Type-check the layer-shell backend
+        # This code is feature-gated behind a system library most developer machines lack, so CI is
+        # the only place it is compiled at all.
+        run: cargo check -p htmlapp --features layer-shell
+
+  # One native runner per architecture. Cross-compiling is not worth it here: WebKitGTK, GTK, and
+  # Vulkan would each need a full aarch64 sysroot.
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libxkbcommon-dev \
+            libwayland-dev libvulkan-dev libssl-dev libgtk-layer-shell-dev pkg-config
+
+      - name: Build
+        run: cargo build --release --locked -p htmlapp --features "$RELEASE_FEATURES"
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          asset="htmlapp-${{ matrix.arch }}-linux.tar.gz"
+          staging="$(mktemp -d)"
+
+          install -m755 target/release/htmlapp "$staging/htmlapp"
+          strip "$staging/htmlapp"
+          install -m644 README.md LICENSE "$staging/"
+          cp -r examples "$staging/examples"
+
+          # `install.sh` untars and expects `htmlapp` at the archive root.
+          tar -czf "$asset" -C "$staging" .
+          sha256sum "$asset" > "$asset.sha256"
+
+          echo "--- $asset ---"
+          ls -lh "$asset"
+          cat "$asset.sha256"
+
+      - name: Verify the binary runs
+        # A release binary that cannot execute on the machine that built it is worth catching here
+        # rather than in an issue report.
+        run: |
+          set -euo pipefail
+          printf 'a,b\n1,2\n' | ./target/release/htmlapp examples/csv-report.hta --headless
+          ./target/release/htmlapp --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ matrix.arch }}
+          path: |
+            htmlapp-${{ matrix.arch }}-linux.tar.gz
+            htmlapp-${{ matrix.arch }}-linux.tar.gz.sha256
+          if-no-files-found: error
+
+  deb:
+    name: Debian package
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: deb
+      - name: Install build tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            debhelper devscripts dpkg-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libxkbcommon-dev \
+            libwayland-dev libvulkan-dev libssl-dev libgtk-layer-shell-dev pkg-config
+
+      - name: Build the package
+        run: |
+          set -euo pipefail
+          # `dpkg-buildpackage` insists on ./debian; the sources live under packaging/ so the repo
+          # root stays uncluttered.
+          cp -r packaging/debian debian
+
+          # Keep the changelog version in step with the tag, so the .deb cannot claim a version
+          # the release does not have.
+          version="${GITHUB_REF_NAME#v}"
+          if [ "$version" = "$GITHUB_REF_NAME" ]; then
+            # Not a tag — a manual run. Use a version that sorts below any real release.
+            version="0.0.0+$(git rev-parse --short HEAD)"
+          fi
+          sed -i "1s/^htmlapp (.*)/htmlapp ($version)/" debian/changelog
+
+          DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -us -uc -b
+          mkdir -p dist && mv ../htmlapp_*.deb dist/
+
+      - name: Inspect the package
+        run: |
+          set -euo pipefail
+          deb="$(ls dist/*.deb)"
+          dpkg-deb --info "$deb"
+          echo "--- contents ---"
+          dpkg-deb --contents "$deb"
+          sha256sum "$deb" > "$deb.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: dist/*
+          if-no-files-found: error
+
+  appimage:
+    name: AppImage
+    needs: test
+    runs-on: ubuntu-24.04
+    env:
+      # GitHub runners have no FUSE, so appimagetool has to unpack itself instead of mounting.
+      APPIMAGE_EXTRACT_AND_RUN: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: appimage
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libxkbcommon-dev \
+            libwayland-dev libvulkan-dev libssl-dev libgtk-layer-shell-dev pkg-config file
+
+      - name: Fetch appimagetool
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /usr/local/bin/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /usr/local/bin/appimagetool
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          # The script builds with default features; the release binary wants the optional
+          # backends, so it is built first and reused.
+          cargo build --release --locked -p htmlapp --features "$RELEASE_FEATURES"
+          ./packaging/appimage/build-appimage.sh
+          mkdir -p dist && mv target/HtmlApp-*.AppImage dist/
+          ( cd dist && sha256sum HtmlApp-*.AppImage > "$(ls HtmlApp-*.AppImage).sha256" )
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: [build, deb, appimage]
+    # Every build has to succeed. Publishing a release that is silently missing an architecture is
+    # worse than not publishing: `install.sh` would 404 for those users with no explanation.
+    #
+    # If `ubuntu-24.04-arm` is unavailable — ARM runners are free for public repositories, billed
+    # otherwise — drop the aarch64 entry from the build matrix rather than relaxing this.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List what will be published
+        run: ls -lh artifacts/
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          # Draft, so the assets can be checked before anyone can `curl | sh` them.
+          draft: true
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ```sh
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/install.sh | sh
+            ```
+
+            Or download the tarball for your architecture below, extract it, and run
+            `./htmlapp install` once to register the `.hta` file type.
+
+            ## Assets
+
+            | File | |
+            |---|---|
+            | `htmlapp-x86_64-linux.tar.gz` | Binary, examples, README, licence |
+            | `htmlapp-aarch64-linux.tar.gz` | Same, for arm64 |
+            | `htmlapp_*.deb` | Debian and Ubuntu |
+            | `HtmlApp-*.AppImage` | Distribution-independent |
+
+            Each asset has a `.sha256` beside it.
+
+            Built with `layer-shell`, `usb`, and `bluetooth` enabled. `plugin` (WebAssembly) is
+            not included — build from source with `--features htmlapp-api/plugin` if you need it.

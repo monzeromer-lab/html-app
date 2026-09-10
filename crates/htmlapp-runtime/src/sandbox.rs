@@ -67,6 +67,17 @@ pub fn arguments(granted: Option<&Permissions>, document: Option<&Path>) -> Vec<
         bind(&mut args, "--ro-bind", "/tmp/.X11-unix");
     }
 
+    // The runtime binary itself, read-only.
+    //
+    // Without this, `bwrap` cannot exec it: the system binds above only cover `/usr`, `/bin`, and
+    // friends, so an installed-to-`~/.local/bin` binary — which is where the installer puts it —
+    // a development build, or a stapled app would all fail with `execvp: No such file or directory`.
+    if let Ok(exe) = std::env::current_exe()
+        && let Ok(canonical) = exe.canonicalize()
+    {
+        bind(&mut args, "--ro-bind", &canonical.to_string_lossy());
+    }
+
     // The document itself, read-only.
     if let Some(document) = document
         && let Ok(canonical) = document.canonicalize()
@@ -155,7 +166,8 @@ pub fn reexec(granted: Option<&Permissions>, document: Option<&Path>) -> std::io
         ));
     };
 
-    let exe = std::env::current_exe()?;
+    // Canonicalised so the path inside the jail matches the one `arguments` bound.
+    let exe = std::env::current_exe()?.canonicalize()?;
     let mut command = std::process::Command::new(bwrap);
     command.args(arguments(granted, document));
     command.arg("--");

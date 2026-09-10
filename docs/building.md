@@ -53,14 +53,19 @@ Default features cover everything that builds without an extra system library.
 | `htmlapp-engine` | `wpe-backend` | off | Reserved for the offscreen WPE backend. |
 | `htmlapp-engine` | `devtools` | off | Makes the engine inspector reachable. |
 | `htmlapp-api` | `tier1`…`tier4` | **on** | The API catalog tiers. |
-| `htmlapp-api` | `usb` | **on** | `rusb`, with libusb built from source. |
-| `htmlapp-api` | `bluetooth` | **on** | `bluer`, over BlueZ's D-Bus interface. |
+| `htmlapp-api` | `usb` | off | `rusb`, with libusb built from source. Adds a C build to every compile. |
+| `htmlapp-api` | `bluetooth` | off | `bluer`, over BlueZ's D-Bus interface. |
 | `htmlapp-api` | `plugin` | off | `wasmtime`. Large; adds minutes to a cold build. |
 | `htmlapp-engine-cef` | `cef` | off | Scaffolded, not implemented. |
 
+`serial` is on by default because it needs no extra system library; `usb`, `bluetooth`, and
+`plugin` are off because each adds real build cost — libusb is compiled from source, and wasmtime
+adds minutes to a cold build.
+
 ```sh
-# Everything that works on this machine
-cargo build --release --features layer-shell,htmlapp-api/plugin
+# Everything, including the hardware and WebAssembly backends
+cargo build --release -p htmlapp \
+  --features layer-shell,htmlapp-api/usb,htmlapp-api/bluetooth,htmlapp-api/plugin
 
 # A minimal build: Tier 1 only, no hardware backends
 cargo build --release --no-default-features \

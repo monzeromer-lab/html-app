@@ -116,3 +116,23 @@ fn config_fills_in_unspecified_keys() {
 fn config_rejects_unknown_keys() {
     assert!(toml::from_str::<Config>("launchre = false").is_err());
 }
+
+/// The jail has to contain the binary it is about to exec.
+///
+/// Regression test: the system binds only cover `/usr`, `/bin`, and friends, so a binary installed
+/// to `~/.local/bin` — which is where the installer puts it — or a development build failed with
+/// `bwrap: execvp …: No such file or directory`.
+#[test]
+fn sandbox_binds_the_runtime_binary() {
+    let exe = std::env::current_exe()
+        .and_then(|p| p.canonicalize())
+        .expect("the test binary has a path");
+    let exe = exe.to_string_lossy().into_owned();
+
+    let args = sandbox::arguments(None, None);
+    assert!(
+        args.windows(3)
+            .any(|w| w[0] == "--ro-bind" && w[1] == exe && w[2] == exe),
+        "the sandbox must bind the running binary, or bwrap cannot exec it"
+    );
+}

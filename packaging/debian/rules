@@ -11,11 +11,15 @@ export CARGO_HOME = $(CURDIR)/debian/cargo
 %:
 	dh $@
 
+# Matches the features the release workflow ships, so a .deb and a downloaded tarball behave
+# identically. `plugin` is excluded from both.
+FEATURES = layer-shell,htmlapp-api/usb,htmlapp-api/bluetooth
+
 override_dh_auto_build:
-	cargo build --release --locked --bin htmlapp
+	cargo build --release --locked -p htmlapp --features $(FEATURES)
 
 override_dh_auto_test:
-	cargo test --release --locked --workspace
+	cargo test --locked --workspace
 
 override_dh_auto_install:
 	install -Dm755 target/release/htmlapp debian/htmlapp/usr/bin/htmlapp

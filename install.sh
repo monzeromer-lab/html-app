@@ -40,24 +40,29 @@ if [ "$version" = "latest" ]; then
   [ -n "$version" ] || die "could not determine the latest version"
 fi
 
-url="https://github.com/$REPO/releases/download/$version/htmlapp-$arch-linux.tar.gz"
+asset="htmlapp-$arch-linux.tar.gz"
+url="https://github.com/$REPO/releases/download/$version/$asset"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 say "==> Downloading $version for $arch"
-curl -fsSL "$url" -o "$tmp/htmlapp.tar.gz" || die "download failed: $url"
+curl -fsSL "$url" -o "$tmp/$asset" || die "download failed: $url"
 
 # Verify the checksum if the release published one. A missing checksum is a warning, not a
 # hard failure, so a self-hosted mirror without one still works.
-if curl -fsSL "$url.sha256" -o "$tmp/htmlapp.tar.gz.sha256" 2>/dev/null; then
+#
+# The file is saved under its published name because `sha256sum -c` resolves the filename
+# recorded *inside* the checksum file; downloading to a different name makes every valid
+# release look corrupt.
+if curl -fsSL "$url.sha256" -o "$tmp/$asset.sha256" 2>/dev/null; then
   say "==> Verifying checksum"
-  ( cd "$tmp" && sha256sum -c htmlapp.tar.gz.sha256 >/dev/null 2>&1 ) \
+  ( cd "$tmp" && sha256sum -c "$asset.sha256" >/dev/null 2>&1 ) \
     || die "checksum mismatch — refusing to install"
 else
   say "    (no published checksum for this release)"
 fi
 
-tar -xzf "$tmp/htmlapp.tar.gz" -C "$tmp"
+tar -xzf "$tmp/$asset" -C "$tmp"
 [ -f "$tmp/htmlapp" ] || die "the archive did not contain a htmlapp binary"
 
 say "==> Installing to $BIN"
