@@ -47,7 +47,7 @@ Optional, for specific features:
 
 | For | Install |
 |---|---|
-| Layer-shell window modes | `libgtk-layer-shell-dev` / `gtk-layer-shell-devel` / `gtk-layer-shell` |
+| Layer-shell window modes | `libgtk-layer-shell-dev` / `gtk-layer-shell-devel` / `gtk-layer-shell`, 0.6 or newer |
 | `--sandbox` | `bubblewrap` |
 | Portals (dialogs, screenshots) | `xdg-desktop-portal` + a backend for your desktop |
 | `.AppImage` output | `appimagetool` |
